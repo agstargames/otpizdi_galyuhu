@@ -34,6 +34,7 @@
     const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     let audioCtx = null;
     let audioReady = false;
+    let audioUnlocked = false;
     const soundBuffers = {};
 
     const SOUND_FILES = {
@@ -52,10 +53,12 @@
         gameover:   0.7,
     };
 
+    // Музыка
     const musicTrack = new Audio('crystals.mp3');
     musicTrack.loop = true;
     musicTrack.volume = 0.4;
     musicTrack.preload = 'auto';
+    let musicPlaying = false;
 
     function initAudio() {
         if (audioCtx) return;
@@ -104,6 +107,27 @@
             source.connect(gain);
             gain.connect(audioCtx.destination);
             source.start(0);
+        } catch (e) {}
+    }
+
+    // Специальная функция для gameover — гарантия полного проигрывания
+    function playGameoverSound() {
+        if (!audioCtx || !soundBuffers['gameover']) return;
+        try {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // Маленькая пауза чтобы звук точно стартовал с начала
+            setTimeout(() => {
+                const source = audioCtx.createBufferSource();
+                const gain   = audioCtx.createGain();
+
+                source.buffer = soundBuffers['gameover'];
+                gain.gain.value = SOUND_VOLUME['gameover'] || 0.7;
+
+                source.connect(gain);
+                gain.connect(audioCtx.destination);
+                source.start(0);
+            }, 50);
         } catch (e) {}
     }
 
@@ -206,31 +230,55 @@
     // === Музыка ===
     function startMusic() {
         musicTrack.currentTime = 0;
-        musicTrack.play().catch(() => {
-            setTimeout(() => musicTrack.play().catch(() => {}), 500);
-        });
+        musicPlaying = false;
+
+        function tryPlay() {
+            musicTrack.play().then(() => {
+                musicPlaying = true;
+            }).catch(() => {
+                // Если не получилось — пробуем ещё
+                if (!musicPlaying && running) {
+                    setTimeout(tryPlay, 500);
+                }
+            });
+        }
+
+        tryPlay();
     }
 
     function stopMusic() {
+        musicPlaying = false;
         musicTrack.pause();
         musicTrack.currentTime = 0;
     }
 
     // === Разблокировка звука ===
     function unlockAudio() {
+        if (audioUnlocked) return;
+        audioUnlocked = true;
+
         initAudio();
-        musicTrack.volume = 0;
+
+        // Разблокируем музыку — играем тихо и сразу паузим
+        const origVol = musicTrack.volume;
+        musicTrack.volume = 0.001;
         musicTrack.play().then(() => {
             musicTrack.pause();
             musicTrack.currentTime = 0;
-            musicTrack.volume = 0.4;
+            musicTrack.volume = origVol;
         }).catch(() => {
-            musicTrack.volume = 0.4;
+            musicTrack.volume = origVol;
         });
+
+        // Пинаем AudioContext
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
     }
 
-    document.addEventListener('click', unlockAudio, { once: true });
-    document.addEventListener('touchstart', unlockAudio, { once: true });
+    // Ловим ВСЕ тапы и клики для разблокировки
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
 
     // ======= КОНФИГ =======
     const CFG = {
@@ -767,8 +815,15 @@
     function gameOver() {
         running = false;
         cancelAnimationFrame(animId);
+
+        // Сначала останавливаем музыку, потом играем gameover
         stopMusic();
-        playSound('gameover');
+
+        // Небольшая задержка чтобы музыка точно остановилась
+        // и gameover звук проигрался полностью с начала
+        setTimeout(() => {
+            playGameoverSound();
+        }, 100);
 
         elFinalScore.textContent = score;
         elFinalWave.textContent  = wave;
@@ -883,36 +938,42 @@
     //  СТАРТ / РЕСТАРТ / МЕНЮ
     // ============================================================
     function startGame() {
-        initAudio();
-        resize();
+        // Разблокируем звук при каждом старте
+        unlockAudio();
 
-        score = 0;
-        lives = CFG.lives;
-        wave  = 1;
-        elScore.textContent = '0';
-        elLives.textContent = lives;
-        elWave.textContent  = '1';
+        // Даём 200мс на разблокировку аудио, потом запускаем всё
+        setTimeout(() => {
+            resize();
 
-        bullets = []; enemies = []; particles = []; floatTexts = [];
-        invincible = false; invTimer = 0;
-        bossAlive  = false;
-        shakeX = shakeY = shakeAmt = shakeDur = 0;
-        fireTimer = 0;
-        firing = false;
-        pointerX = null;
-        touchActive = false;
+            score = 0;
+            lives = CFG.lives;
+            wave  = 1;
+            elScore.textContent = '0';
+            elLives.textContent = lives;
+            elWave.textContent  = '1';
 
-        initStars();
-        initPlayer();
-        showScreen(gameScreen);
+            bullets = []; enemies = []; particles = []; floatTexts = [];
+            invincible = false; invTimer = 0;
+            bossAlive  = false;
+            shakeX = shakeY = shakeAmt = shakeDur = 0;
+            fireTimer = 0;
+            firing = false;
+            pointerX = null;
+            touchActive = false;
 
-        setTimeout(() => startMusic(), 300);
+            initStars();
+            initPlayer();
+            showScreen(gameScreen);
 
-        running  = true;
-        lastTime = performance.now();
-        animId   = requestAnimationFrame(loop);
+            // Запускаем музыку
+            startMusic();
 
-        startWave();
+            running  = true;
+            lastTime = performance.now();
+            animId   = requestAnimationFrame(loop);
+
+            startWave();
+        }, 200);
     }
 
     function toMenu() {
