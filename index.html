@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Симулятор: отпизди Галюху</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- ===== ГЛАВНЫЙ ЭКРАН ===== -->
+    <div id="menu-screen">
+        <div class="stars-bg" id="stars-menu"></div>
+        <div class="menu-content">
+            <div class="studio-logo">
+                <span class="holding">ВайкокинStar Games presents</span>
+                <span class="studio">AUTISTIC GAMES</span>
+            </div>
+            <h1 class="game-title">
+                <span class="title-sub">Симулятор:</span>
+                <span class="title-main">ОТПИЗДИ ГАЛЮХУ</span>
+            </h1>
+            <div class="menu-buttons">
+                <button id="btn-play" class="btn-neon">🚀 ИГРАТЬ</button>
+            </div>
+
+            <!-- ===== FAQ СЕКЦИЯ ===== -->
+            <div class="faq-section">
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Кто такие Autistic Games?</span>
+                        <span class="faq-plus">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Autistic Games — студия команды (аутистов) разработчиков игр про всякую хуйню, дебютировавшая в феврале 2026-го от нехуй делать на лавочке в школьном коридоре. Как только сооснователь Андрей Хлистунов дал, не думая, название студии, внезапно сформировавшаяся команда моментально занялась разработкой первой игры про галюху на уроках, вместо того чтобы учиться, слушать учителей и готовиться к ЕГЭ, когда оно уже через 3 месяца. Штаб-квартира базируется в России, где-то в Залупинске под названием «Дебин», в нищебродской государственной школе с бюджетом в два бутерброда, которую скоро закроют нахуй.</p>
+                    </div>
+                </div>
+
+                <div class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)">
+                        <span>Что за ВайкокинStar Games?</span>
+                        <span class="faq-plus">+</span>
+                    </div>
+                    <div class="faq-answer">
+                        <p>Внезапно решивший Сорокин Максим, что существует какой-то холдинг, дал объяснение: «Аутистик Геймс... Да, это, так сказать, студия под моим крылом, так как я раньше занимался разработкой маленьких игр с помощью шаблонных сайтов и программ-конструкторов. С появлением современных технологий разработкой стало заниматься проще. Ну и что-то мы сидим на скамейке в школе, и от нехуй делать я спрашиваю своих коллег, как могла бы называться наша студия. Наша именно в том понятии, что мы вместе будем заниматься разработкой игр, но разницы особо нет, что там, что здесь ты придумываешь сам, разрабатываешь сам, а остальные просто еблом щёлкают, даже не зная, что они тоже входят в состав студии»</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-footer">
+                <p>v1.0 | © Autistic Games, 2026</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== ИГРОВОЙ ЭКРАН ===== -->
+    <div id="game-screen" class="hidden">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud">
+            <div id="score-display">СЧЁТ: <span id="score">0</span></div>
+            <div id="wave-display">ВОЛНА: <span id="wave">1</span></div>
+            <div id="lives-display">❤️ <span id="lives">3</span></div>
+        </div>
+    </div>
+
+    <!-- ===== ЭКРАН GAME OVER ===== -->
+    <div id="gameover-screen" class="hidden">
+        <div class="stars-bg" id="stars-gameover"></div>
+        <div class="gameover-content">
+            <h2 class="gameover-title">ПОЗОРИЩЕ, СУКА!</h2>
+            <p class="gameover-subtitle">Тебя Галюха ёбнула! 💀</p>
+            <p class="final-score">Набрано очков: <span id="final-score">0</span></p>
+            <p class="final-wave">Дожил до волны: <span id="final-wave">1</span></p>
+            <button id="btn-restart" class="btn-neon">🔄 ПОПРОБУЙ ЕЩЁ, ЧЁРТ</button>
+            <button id="btn-menu" class="btn-neon btn-secondary">🏠 В ПИЗДУ</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        function toggleFaq(el) {
+            const item = el.parentElement;
+            item.classList.toggle('open');
+        }
+    </script>
+</body>
+</html>
