@@ -83,7 +83,6 @@ html, body {
     width: 92%;
 }
 
-/* Студия */
 .studio-logo {
     margin-bottom: 40px;
     animation: fadeInDown 1s ease-out;
@@ -112,7 +111,6 @@ html, body {
     animation: glowPulse 2s ease-in-out infinite;
 }
 
-/* Название игры */
 .game-title {
     margin-bottom: 50px;
     animation: fadeInUp 1.2s ease-out;
@@ -221,6 +219,33 @@ html, body {
     letter-spacing: 0.5px;
 }
 
+.btn-telegram {
+    display: inline-block;
+    padding: 12px 32px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.6rem, 2.2vw, 0.8rem);
+    font-weight: 700;
+    color: #29b6f6;
+    background: rgba(41, 182, 246, 0.08);
+    border: 2px solid #29b6f6;
+    border-radius: 8px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-decoration: none;
+    text-shadow: 0 0 8px #29b6f644;
+    box-shadow: 0 0 12px #29b6f622;
+    transition: all 0.3s ease;
+    margin-top: 12px;
+}
+
+.btn-telegram:hover,
+.btn-telegram:active {
+    color: #000;
+    background: #29b6f6;
+    box-shadow: 0 0 25px #29b6f6;
+    text-shadow: none;
+}
+
 /* ===== МОДАЛКИ ===== */
 .modal-overlay {
     position: fixed;
@@ -250,10 +275,8 @@ html, body {
 
 .modal-close {
     position: absolute;
-    top: 12px;
-    right: 14px;
-    width: 36px;
-    height: 36px;
+    top: 12px; right: 14px;
+    width: 36px; height: 36px;
     border: 2px solid #ff4444;
     border-radius: 50%;
     background: transparent;
@@ -318,15 +341,8 @@ html, body {
     margin-bottom: 16px;
 }
 
-.nick-input::placeholder {
-    color: #555;
-    font-weight: 400;
-}
-
-.nick-input:focus {
-    border-color: #0ff;
-    box-shadow: 0 0 15px #0ff44;
-}
+.nick-input::placeholder { color: #555; font-weight: 400; }
+.nick-input:focus { border-color: #0ff; box-shadow: 0 0 15px #0ff44; }
 
 .nick-welcome {
     margin-bottom: 16px;
@@ -351,10 +367,7 @@ html, body {
     margin-top: 4px;
 }
 
-.nick-go-btn {
-    margin-top: 8px;
-    padding: 14px 36px;
-}
+.nick-go-btn { margin-top: 8px; padding: 14px 36px; }
 
 /* ===== ПРОВЕРКА РАЗРАБОТЧИКА ===== */
 .dev-check {
@@ -381,15 +394,8 @@ html, body {
     text-shadow: 0 0 8px #0f044;
 }
 
-.dev-password-input {
-    border-color: #ffcc00;
-    margin-bottom: 0;
-}
-
-.dev-password-input:focus {
-    border-color: #ffcc00;
-    box-shadow: 0 0 15px #ffcc0044;
-}
+.dev-password-input { border-color: #ffcc00; margin-bottom: 0; }
+.dev-password-input:focus { border-color: #ffcc00; box-shadow: 0 0 15px #ffcc0044; }
 
 /* ===== МОДАЛКА РЕКОРДЫ ===== */
 .records-box {
@@ -407,9 +413,7 @@ html, body {
     margin-bottom: 20px;
 }
 
-.records-list {
-    text-align: left;
-}
+.records-list { text-align: left; }
 
 .record-row {
     display: flex;
@@ -420,14 +424,8 @@ html, body {
     transition: background 0.2s ease;
 }
 
-.record-row:hover {
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.record-row.gold {
-    background: rgba(255, 204, 0, 0.08);
-    border-color: #ffcc0033;
-}
+.record-row:hover { background: rgba(255, 255, 255, 0.04); }
+.record-row.gold { background: rgba(255, 204, 0, 0.08); border-color: #ffcc0033; }
 
 .record-rank {
     font-family: 'Press Start 2P', cursive;
@@ -436,9 +434,7 @@ html, body {
     min-width: 36px;
 }
 
-.record-row.gold .record-rank {
-    color: #ffcc00;
-}
+.record-row.gold .record-rank { color: #ffcc00; }
 
 .record-nick {
     font-family: 'Orbitron', sans-serif;
@@ -490,7 +486,7 @@ html, body {
     line-height: 1.7;
 }
 
-/* ===== FAQ СЕКЦИЯ ===== */
+/* ===== FAQ ===== */
 .faq-section {
     margin: 30px auto 40px;
     max-width: 560px;
@@ -508,14 +504,8 @@ html, body {
     transition: border-color 0.3s ease;
 }
 
-.faq-item:hover {
-    border-color: #555;
-}
-
-.faq-item.open {
-    border-color: #0ff;
-    box-shadow: 0 0 12px #0ff22;
-}
+.faq-item:hover { border-color: #555; }
+.faq-item.open { border-color: #0ff; box-shadow: 0 0 12px #0ff22; }
 
 .faq-question {
     display: flex;
@@ -532,9 +522,7 @@ html, body {
     transition: color 0.3s ease;
 }
 
-.faq-question:hover {
-    color: #fff;
-}
+.faq-question:hover { color: #fff; }
 
 .faq-plus {
     font-family: 'Orbitron', sans-serif;
@@ -605,8 +593,7 @@ html, body {
 
 #gameCanvas {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     touch-action: none;
 }
 
@@ -758,4 +745,4 @@ html, body {
 @media (min-width: 1024px) {
     .menu-content { padding: 60px 20px; }
     .faq-section { max-width: 580px; }
-}
+    }
