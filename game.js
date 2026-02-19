@@ -7,19 +7,30 @@
     'use strict';
 
     // ======= DOM =======
-    const menuScreen   = document.getElementById('menu-screen');
-    const gameScreen   = document.getElementById('game-screen');
-    const overScreen   = document.getElementById('gameover-screen');
-    const canvas       = document.getElementById('gameCanvas');
-    const ctx          = canvas.getContext('2d');
-    const elScore      = document.getElementById('score');
-    const elLives      = document.getElementById('lives');
-    const elWave       = document.getElementById('wave');
-    const elFinalScore = document.getElementById('final-score');
-    const elFinalWave  = document.getElementById('final-wave');
-    const btnPlay      = document.getElementById('btn-play');
-    const btnRestart   = document.getElementById('btn-restart');
-    const btnMenu      = document.getElementById('btn-menu');
+    const menuScreen    = document.getElementById('menu-screen');
+    const gameScreen    = document.getElementById('game-screen');
+    const overScreen    = document.getElementById('gameover-screen');
+    const canvas        = document.getElementById('gameCanvas');
+    const ctx           = canvas.getContext('2d');
+    const elScore       = document.getElementById('score');
+    const elLives       = document.getElementById('lives');
+    const elWave        = document.getElementById('wave');
+    const elFinalScore  = document.getElementById('final-score');
+    const elFinalWave   = document.getElementById('final-wave');
+    const elGameoverNick= document.getElementById('gameover-nick');
+    const elNewRecord   = document.getElementById('new-record');
+    const btnPlay       = document.getElementById('btn-play');
+    const btnRestart    = document.getElementById('btn-restart');
+    const btnMenu       = document.getElementById('btn-menu');
+
+    // Ник
+    const nickModal     = document.getElementById('nick-modal');
+    const nickInput     = document.getElementById('nick-input');
+    const nickWelcome   = document.getElementById('nick-welcome');
+    const devCheck      = document.getElementById('dev-check');
+    const devPassword   = document.getElementById('dev-password');
+    const btnNickGo     = document.getElementById('btn-nick-go');
+    const impostorModal = document.getElementById('impostor-modal');
 
     // ======= КАРТИНКИ =======
     const ENEMY_IMGS = ['shit1.png','shit2.png','shit3.png','shit4.png'].map(src => {
@@ -27,6 +38,225 @@
     });
     const BOSS_IMG = new Image();
     BOSS_IMG.src = 'shit_final.png';
+
+    // ============================================================
+    //  СИСТЕМА НИКОВ И РЕКОРДОВ
+    // ============================================================
+
+    // === Разработчики ===
+    const DEV_NICKS = ['miralys', 'vikxii', 'dr.hentai'];
+
+    // Пароль Miralys (ЗАМЕНИ НА СВОЙ):
+    const MIRALYS_PASSWORD = 'шайлили<3''';
+
+    let currentNick = '';
+
+    function isDevNick(nick) {
+        return DEV_NICKS.includes(nick.toLowerCase().trim());
+    }
+
+    function getDevPassKey(nick) {
+        return 'galuha_dev_pass_' + nick.toLowerCase().trim();
+    }
+
+    function hasDevPassword(nick) {
+        return localStorage.getItem(getDevPassKey(nick)) !== null;
+    }
+
+    function saveDevPassword(nick, pass) {
+        localStorage.setItem(getDevPassKey(nick), pass);
+    }
+
+    function checkDevPassword(nick, pass) {
+        const n = nick.toLowerCase().trim();
+        if (n === 'miralys') {
+            return pass === MIRALYS_PASSWORD;
+        }
+        const saved = localStorage.getItem(getDevPassKey(nick));
+        return saved !== null && saved === pass;
+    }
+
+    // === Рекорды (LocalStorage) ===
+    function getRecords() {
+        try {
+            const data = localStorage.getItem('galuha_records');
+            return data ? JSON.parse(data) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function saveRecord(nick, score, waveNum) {
+        const records = getRecords();
+        const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
+        const isDev = isDevNick(nick);
+        let isNew = false;
+
+        if (existing) {
+            if (score > existing.score) {
+                existing.score = score;
+                existing.wave = waveNum;
+                existing.date = Date.now();
+                existing.isDev = isDev;
+                isNew = true;
+            }
+        } else {
+            records.push({
+                nick: nick,
+                score: score,
+                wave: waveNum,
+                date: Date.now(),
+                isDev: isDev
+            });
+            isNew = true;
+        }
+
+        records.sort((a, b) => b.score - a.score);
+        localStorage.setItem('galuha_records', JSON.stringify(records));
+        return isNew;
+    }
+
+    function getPlayerRecord(nick) {
+        const records = getRecords();
+        return records.find(r => r.nick.toLowerCase() === nick.toLowerCase()) || null;
+    }
+
+    // === Рендер таблицы рекордов ===
+    window.renderRecords = function () {
+        const list = document.getElementById('records-list');
+        const records = getRecords();
+
+        if (records.length === 0) {
+            list.innerHTML = '<p class="no-records">Пока никто не играл. Будь первым!</p>';
+            return;
+        }
+
+        let html = '';
+        records.forEach((r, i) => {
+            const isGold = i === 0;
+            const medals = ['👑', '🥈', '🥉'];
+            const medal = i < 3 ? medals[i] : (i + 1);
+            const devBadge = r.isDev ? '<span class="dev-badge">DEV</span>' : '';
+
+            html += `
+                <div class="record-row ${isGold ? 'gold' : ''}">
+                    <span class="record-rank">${medal}</span>
+                    <span class="record-nick">${r.nick}${devBadge}</span>
+                    <span class="record-score">${r.score}</span>
+                    <span class="record-wave">W${r.wave}</span>
+                </div>
+            `;
+        });
+
+        list.innerHTML = html;
+    };
+
+    // === Логика ввода ника ===
+    function showNickModal() {
+        nickModal.classList.remove('hidden');
+        nickInput.value = '';
+        nickWelcome.classList.add('hidden');
+        devCheck.classList.add('hidden');
+        devPassword.value = '';
+        nickInput.focus();
+    }
+
+    function hideNickModal() {
+        nickModal.classList.add('hidden');
+    }
+
+    nickInput.addEventListener('input', function () {
+        const nick = nickInput.value.trim();
+        nickWelcome.classList.add('hidden');
+        devCheck.classList.add('hidden');
+        devPassword.value = '';
+
+        if (!nick) return;
+
+        if (isDevNick(nick)) {
+            devCheck.classList.remove('hidden');
+            const n = nick.toLowerCase().trim();
+
+            if (n === 'miralys' || hasDevPassword(nick)) {
+                // Уже зарегистрирован — просим пароль
+                devCheck.innerHTML = `
+                    <p class="dev-check-text">Это никнейм разработчика. Пруфани, что это ты.</p>
+                    <input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Пароль..." maxlength="32" autocomplete="off">
+                `;
+            } else {
+                // Первый раз — просим придумать пароль
+                devCheck.innerHTML = `
+                    <p class="dev-check-text setup-text">О, мы тебя знаем. Ты тоже разраб этой игры. Придумай пароль, пока никакая сука не спиздила аккаунт.</p>
+                    <input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Придумай пароль..." maxlength="32" autocomplete="off">
+                `;
+            }
+        } else {
+            // Обычный игрок — проверяем есть ли рекорд
+            const rec = getPlayerRecord(nick);
+            if (rec) {
+                nickWelcome.classList.remove('hidden');
+                nickWelcome.innerHTML = `
+                    <p>О, это ты, <strong>${rec.nick}</strong>! 👋</p>
+                    <p class="welcome-record">Твой рекорд: ${rec.score} очков (волна ${rec.wave})</p>
+                `;
+            }
+        }
+    });
+
+    btnNickGo.addEventListener('click', function () {
+        const nick = nickInput.value.trim();
+        if (!nick) {
+            nickInput.style.borderColor = '#f44';
+            setTimeout(() => nickInput.style.borderColor = '#555', 1000);
+            return;
+        }
+
+        if (isDevNick(nick)) {
+            const passInput = document.getElementById('dev-password');
+            const pass = passInput ? passInput.value : '';
+
+            if (!pass) {
+                if (passInput) {
+                    passInput.style.borderColor = '#f44';
+                    setTimeout(() => passInput.style.borderColor = '#ffcc00', 1000);
+                }
+                return;
+            }
+
+            const n = nick.toLowerCase().trim();
+
+            if (n === 'miralys') {
+                // Хардкод пароль
+                if (!checkDevPassword(nick, pass)) {
+                    impostorModal.classList.remove('hidden');
+                    return;
+                }
+            } else if (hasDevPassword(nick)) {
+                // Уже зарегистрирован — проверяем
+                if (!checkDevPassword(nick, pass)) {
+                    impostorModal.classList.remove('hidden');
+                    return;
+                }
+            } else {
+                // Первый раз — сохраняем пароль
+                saveDevPassword(nick, pass);
+            }
+        }
+
+        currentNick = nick;
+        hideNickModal();
+        launchGame();
+    });
+
+    // Enter для подтверждения
+    nickInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') btnNickGo.click();
+    });
+
+    // Делегируем Enter на поле пароля (оно динамическое)
+    devCheck.addEventListener('keydown', e => {
+        if (e.key === 'Enter') btnNickGo.click();
+    });
 
     // ============================================================
     //  ЗВУКОВОЙ ДВИЖОК (Web Audio API)
@@ -53,7 +283,6 @@
         gameover:   0.7,
     };
 
-    // Музыка
     const musicTrack = new Audio('crystals.mp3');
     musicTrack.loop = true;
     musicTrack.volume = 0.4;
@@ -64,19 +293,14 @@
         if (audioCtx) return;
         try {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
             loadAllSounds();
-        } catch (e) {
-            console.warn('Web Audio API недоступен');
-        }
+        } catch (e) {}
     }
 
     function loadAllSounds() {
         const entries = Object.entries(SOUND_FILES);
         let loaded = 0;
-
         entries.forEach(([key, url]) => {
             fetch(url)
                 .then(r => r.arrayBuffer())
@@ -97,33 +321,25 @@
         if (!audioCtx || !soundBuffers[name]) return;
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
             const source = audioCtx.createBufferSource();
             const gain   = audioCtx.createGain();
-
             source.buffer = soundBuffers[name];
             gain.gain.value = SOUND_VOLUME[name] || 0.5;
-
             source.connect(gain);
             gain.connect(audioCtx.destination);
             source.start(0);
         } catch (e) {}
     }
 
-    // Специальная функция для gameover — гарантия полного проигрывания
     function playGameoverSound() {
         if (!audioCtx || !soundBuffers['gameover']) return;
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            // Маленькая пауза чтобы звук точно стартовал с начала
             setTimeout(() => {
                 const source = audioCtx.createBufferSource();
                 const gain   = audioCtx.createGain();
-
                 source.buffer = soundBuffers['gameover'];
                 gain.gain.value = SOUND_VOLUME['gameover'] || 0.7;
-
                 source.connect(gain);
                 gain.connect(audioCtx.destination);
                 source.start(0);
@@ -131,23 +347,18 @@
         } catch (e) {}
     }
 
-    // === Синтетические звуки ===
     function playSynthShoot() {
         if (!audioCtx) return;
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const osc  = audioCtx.createOscillator();
+            const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            const now  = audioCtx.currentTime;
-
+            const now = audioCtx.currentTime;
             osc.type = 'square';
             osc.frequency.setValueAtTime(880, now);
             osc.frequency.exponentialRampToValueAtTime(220, now + 0.08);
-
             gain.gain.setValueAtTime(0.06, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
@@ -159,18 +370,14 @@
         if (!audioCtx) return;
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const osc  = audioCtx.createOscillator();
+            const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            const now  = audioCtx.currentTime;
-
+            const now = audioCtx.currentTime;
             osc.type = 'sine';
             osc.frequency.setValueAtTime(600, now);
             osc.frequency.exponentialRampToValueAtTime(200, now + 0.06);
-
             gain.gain.setValueAtTime(0.08, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
@@ -182,19 +389,15 @@
         if (!audioCtx) return;
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const osc  = audioCtx.createOscillator();
+            const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            const now  = audioCtx.currentTime;
-
+            const now = audioCtx.currentTime;
             osc.type = 'sine';
             osc.frequency.setValueAtTime(440, now);
             osc.frequency.exponentialRampToValueAtTime(880, now + 0.2);
-
             gain.gain.setValueAtTime(0.1, now);
             gain.gain.linearRampToValueAtTime(0.1, now + 0.15);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-
             osc.connect(gain);
             gain.connect(audioCtx.destination);
             osc.start(now);
@@ -207,18 +410,14 @@
         try {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const now = audioCtx.currentTime;
-
             [523, 659, 784].forEach((freq, i) => {
-                const osc  = audioCtx.createOscillator();
+                const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 const t = now + i * 0.12;
-
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(freq, t);
-
                 gain.gain.setValueAtTime(0.08, t);
                 gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.start(t);
@@ -227,22 +426,16 @@
         } catch (e) {}
     }
 
-    // === Музыка ===
     function startMusic() {
         musicTrack.currentTime = 0;
         musicPlaying = false;
-
         function tryPlay() {
             musicTrack.play().then(() => {
                 musicPlaying = true;
             }).catch(() => {
-                // Если не получилось — пробуем ещё
-                if (!musicPlaying && running) {
-                    setTimeout(tryPlay, 500);
-                }
+                if (!musicPlaying && running) setTimeout(tryPlay, 500);
             });
         }
-
         tryPlay();
     }
 
@@ -252,14 +445,10 @@
         musicTrack.currentTime = 0;
     }
 
-    // === Разблокировка звука ===
     function unlockAudio() {
         if (audioUnlocked) return;
         audioUnlocked = true;
-
         initAudio();
-
-        // Разблокируем музыку — играем тихо и сразу паузим
         const origVol = musicTrack.volume;
         musicTrack.volume = 0.001;
         musicTrack.play().then(() => {
@@ -269,17 +458,12 @@
         }).catch(() => {
             musicTrack.volume = origVol;
         });
-
-        // Пинаем AudioContext
-        if (audioCtx && audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     }
 
-    // Ловим ВСЕ тапы и клики для разблокировки
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
-
+   
     // ======= КОНФИГ =======
     const CFG = {
         playerSpeed : 7,
@@ -493,18 +677,14 @@
         enemies.push({
             x: Math.random() * (W - sz * 2) + sz,
             y: -sz - 30,
-            w: sz,
-            h: sz,
-            speed: spd,
-            hp: hp,
-            maxHp: hp,
+            w: sz, h: sz,
+            speed: spd, hp: hp, maxHp: hp,
             img: isBoss ? BOSS_IMG : ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)],
             boss: !!isBoss,
             zigzag: !isBoss && Math.random() > 0.4,
             zigAmp: (Math.random() - 0.5) * 4,
             angle: Math.random() * Math.PI * 2,
             flash: 0,
-
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0,
             bossDiving: false,
@@ -527,7 +707,6 @@
                     e.x += Math.sin(e.angle) * e.zigAmp;
                 }
                 e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x));
-
                 if (e.y > H + e.h) {
                     enemies.splice(i, 1);
                     playerHit();
@@ -546,46 +725,32 @@
                 const bossSpeedX = 2.5 + wave * 0.3;
                 e.x += e.bossDir * bossSpeedX;
 
-                if (e.x < e.w / 2 + 20) {
-                    e.x = e.w / 2 + 20;
-                    e.bossDir = 1;
-                }
-                if (e.x > W - e.w / 2 - 20) {
-                    e.x = W - e.w / 2 - 20;
-                    e.bossDir = -1;
-                }
+                if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
+                if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
 
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
                     const diveInterval = Math.max(1800, 4000 - wave * 200);
-
                     if (e.bossDiveTimer > diveInterval) {
                         e.bossDiving = true;
                         e.bossDiveTimer = 0;
                     }
-
                     const targetY = H * 0.15 + e.h / 2;
-                    if (e.y < targetY - 3) {
-                        e.y += 1;
-                    } else if (e.y > targetY + 3) {
-                        e.y -= 1;
-                    }
+                    if (e.y < targetY - 3) e.y += 1;
+                    else if (e.y > targetY + 3) e.y -= 1;
                     e.y += Math.sin(Date.now() / 800) * 0.4;
                 }
 
                 if (e.bossDiving) {
                     const diveSpeed = 5 + wave * 0.4;
                     const diveTarget = player.y - 10;
-
                     e.y += diveSpeed;
-
                     if (e.y >= diveTarget) {
                         e.y = diveTarget;
                         e.bossDiving = false;
                         e.bossReturning = true;
                         doShake(6, 200);
                     }
-
                     if (e.y > H - 30) {
                         e.y = H - 30;
                         e.bossDiving = false;
@@ -595,11 +760,8 @@
                 }
 
                 if (e.bossReturning) {
-                    const returnSpeed = 2.5;
                     const returnTarget = H * 0.15 + e.h / 2;
-
-                    e.y -= returnSpeed;
-
+                    e.y -= 2.5;
                     if (e.y <= returnTarget) {
                         e.y = returnTarget;
                         e.bossReturning = false;
@@ -617,14 +779,8 @@
     function drawEnemies() {
         for (const e of enemies) {
             if (!e.boss && !isOnScreen(e)) continue;
-
             ctx.save();
-
-            if (e.flash > 0) {
-                ctx.shadowBlur = 25;
-                ctx.shadowColor = '#fff';
-            }
-
+            if (e.flash > 0) { ctx.shadowBlur = 25; ctx.shadowColor = '#fff'; }
             ctx.drawImage(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
 
             if (e.maxHp > 1 && e.hp > 0) {
@@ -633,7 +789,6 @@
                 const bx = e.x - bw / 2;
                 const by = e.y - e.h / 2 - (e.boss ? 20 : 12);
                 const ratio = e.hp / e.maxHp;
-
                 ctx.fillStyle = '#222';
                 ctx.fillRect(bx, by, bw, bh);
                 ctx.fillStyle = ratio > 0.5 ? '#0f0' : ratio > 0.25 ? '#ff0' : '#f00';
@@ -652,7 +807,6 @@
                 ctx.shadowColor = '#ff0';
                 ctx.fillText('ГАЛЮХА-БОСС', e.x, by);
             }
-
             ctx.restore();
         }
     }
@@ -666,11 +820,9 @@
             const v = Math.random() * 5 + 2;
             particles.push({
                 x, y,
-                vx: Math.cos(a) * v,
-                vy: Math.sin(a) * v,
+                vx: Math.cos(a) * v, vy: Math.sin(a) * v,
                 r: Math.random() * 4 + 1.5,
-                life: 1,
-                decay: Math.random() * 0.025 + 0.015,
+                life: 1, decay: Math.random() * 0.025 + 0.015,
                 color: color || `hsl(${Math.random() * 50 + 10},100%,55%)`
             });
         }
@@ -679,9 +831,7 @@
     function updateParticles() {
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += 0.06;
+            p.x += p.vx; p.y += p.vy; p.vy += 0.06;
             p.life -= p.decay;
             if (p.life <= 0) particles.splice(i, 1);
         }
@@ -691,8 +841,7 @@
         for (const p of particles) {
             ctx.save();
             ctx.globalAlpha = p.life;
-            ctx.shadowBlur = 6;
-            ctx.shadowColor = p.color;
+            ctx.shadowBlur = 6; ctx.shadowColor = p.color;
             ctx.fillStyle = p.color;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
@@ -705,20 +854,13 @@
     //  ЛЕТАЮЩИЙ ТЕКСТ
     // ============================================================
     function addText(x, y, text, color, size, decay) {
-        floatTexts.push({
-            x, y, text, color,
-            size: size || 22,
-            life: 1,
-            vy: -1.2,
-            decay: decay || 0.015
-        });
+        floatTexts.push({ x, y, text, color, size: size || 22, life: 1, vy: -1.2, decay: decay || 0.015 });
     }
 
     function updateTexts() {
         for (let i = floatTexts.length - 1; i >= 0; i--) {
             const t = floatTexts[i];
-            t.y += t.vy;
-            t.life -= t.decay;
+            t.y += t.vy; t.life -= t.decay;
             if (t.life <= 0) floatTexts.splice(i, 1);
         }
     }
@@ -730,8 +872,7 @@
             ctx.fillStyle = t.color;
             ctx.font = `bold ${t.size}px Orbitron`;
             ctx.textAlign = 'center';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = t.color;
+            ctx.shadowBlur = 12; ctx.shadowColor = t.color;
             ctx.fillText(t.text, t.x, t.y);
             ctx.restore();
         }
@@ -740,9 +881,7 @@
     // ============================================================
     //  СТОЛКНОВЕНИЯ
     // ============================================================
-    function dist(ax, ay, bx, by) {
-        return Math.hypot(ax - bx, ay - by);
-    }
+    function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
 
     function checkCollisions() {
         for (let bi = bullets.length - 1; bi >= 0; bi--) {
@@ -750,23 +889,17 @@
             for (let ei = enemies.length - 1; ei >= 0; ei--) {
                 const e = enemies[ei];
                 if (!isOnScreen(e)) continue;
-
                 if (dist(b.x, b.y, e.x, e.y) < e.w / 2 + 6) {
                     bullets.splice(bi, 1);
-                    e.hp--;
-                    e.flash = 80;
+                    e.hp--; e.flash = 80;
                     boom(b.x, b.y, 4, '#0ff');
-
                     playSynthHit();
-
                     if (e.hp <= 0) {
                         const pts = e.boss ? 500 * wave : 100;
                         score += pts;
                         elScore.textContent = score;
-
                         boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80');
                         addText(e.x, e.y, '+' + pts, e.boss ? '#ff0' : '#0ff');
-
                         if (e.boss) {
                             bossAlive = false;
                             doShake(16, 600);
@@ -786,7 +919,6 @@
             for (let ei = enemies.length - 1; ei >= 0; ei--) {
                 const e = enemies[ei];
                 if (!isOnScreen(e)) continue;
-
                 if (dist(player.x, player.y, e.x, e.y) < e.w / 2 + 16) {
                     if (!e.boss) enemies.splice(ei, 1);
                     boom(player.x, player.y, 22, '#f44');
@@ -808,35 +940,35 @@
         invTimer = CFG.invincTime;
         doShake(8, 250);
         playSound('playerHit');
-
         if (lives <= 0) gameOver();
     }
 
     function gameOver() {
         running = false;
         cancelAnimationFrame(animId);
-
-        // Сначала останавливаем музыку, потом играем gameover
         stopMusic();
+        setTimeout(() => playGameoverSound(), 100);
 
-        // Небольшая задержка чтобы музыка точно остановилась
-        // и gameover звук проигрался полностью с начала
-        setTimeout(() => {
-            playGameoverSound();
-        }, 100);
+        // Сохраняем рекорд
+        const isNewRecord = saveRecord(currentNick, score, wave);
 
         elFinalScore.textContent = score;
         elFinalWave.textContent  = wave;
+        elGameoverNick.textContent = currentNick;
+
+        if (isNewRecord) {
+            elNewRecord.classList.remove('hidden');
+        } else {
+            elNewRecord.classList.add('hidden');
+        }
+
         setTimeout(() => showScreen(overScreen), 600);
     }
 
     // ============================================================
-    //  ТРЯСКА ЭКРАНА
+    //  ТРЯСКА
     // ============================================================
-    function doShake(amt, dur) {
-        shakeAmt = amt;
-        shakeDur = dur;
-    }
+    function doShake(amt, dur) { shakeAmt = amt; shakeDur = dur; }
 
     function updateShake(dt) {
         if (shakeDur > 0) {
@@ -853,7 +985,6 @@
     function startWave() {
         waveState = 'active';
         const isBoss = wave % CFG.bossEvery === 0;
-
         if (isBoss) {
             toSpawn = 0;
             spawnEnemy(true);
@@ -867,7 +998,6 @@
             addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008);
             playSynthWave();
         }
-
         elWave.textContent = wave;
     }
 
@@ -881,7 +1011,6 @@
                     toSpawn--;
                 }
             }
-
             if (toSpawn <= 0 && enemies.length === 0) {
                 waveState = 'cooldown';
                 wavePauseTimer = 0;
@@ -890,10 +1019,7 @@
             }
         } else {
             wavePauseTimer += dt;
-            if (wavePauseTimer >= CFG.wavePause) {
-                wave++;
-                startWave();
-            }
+            if (wavePauseTimer >= CFG.wavePause) { wave++; startWave(); }
         }
     }
 
@@ -903,85 +1029,69 @@
     function loop(time) {
         if (!running) return;
         animId = requestAnimationFrame(loop);
-
         const dt = Math.min(time - lastTime, 50);
         lastTime = time;
 
-        updateStars();
-        updatePlayer(dt);
-        handleFiring(dt);
-        updateBullets();
-        updateEnemies(dt);
-        updateParticles();
-        updateTexts();
-        checkCollisions();
-        updateWave(dt);
-        updateShake(dt);
+        updateStars(); updatePlayer(dt); handleFiring(dt);
+        updateBullets(); updateEnemies(dt); updateParticles();
+        updateTexts(); checkCollisions(); updateWave(dt); updateShake(dt);
 
         ctx.save();
         ctx.translate(shakeX, shakeY);
-
         ctx.fillStyle = '#050510';
         ctx.fillRect(-10, -10, W + 20, H + 20);
-
-        drawStars();
-        drawBullets();
-        drawEnemies();
-        drawPlayer();
-        drawParticles();
-        drawTexts();
-
+        drawStars(); drawBullets(); drawEnemies();
+        drawPlayer(); drawParticles(); drawTexts();
         ctx.restore();
     }
 
     // ============================================================
     //  СТАРТ / РЕСТАРТ / МЕНЮ
     // ============================================================
-    function startGame() {
-        // Разблокируем звук при каждом старте
+    function launchGame() {
         unlockAudio();
-
-        // Даём 200мс на разблокировку аудио, потом запускаем всё
         setTimeout(() => {
             resize();
-
-            score = 0;
-            lives = CFG.lives;
-            wave  = 1;
+            score = 0; lives = CFG.lives; wave = 1;
             elScore.textContent = '0';
             elLives.textContent = lives;
-            elWave.textContent  = '1';
+            elWave.textContent = '1';
 
             bullets = []; enemies = []; particles = []; floatTexts = [];
             invincible = false; invTimer = 0;
-            bossAlive  = false;
+            bossAlive = false;
             shakeX = shakeY = shakeAmt = shakeDur = 0;
-            fireTimer = 0;
-            firing = false;
-            pointerX = null;
-            touchActive = false;
+            fireTimer = 0; firing = false;
+            pointerX = null; touchActive = false;
 
-            initStars();
-            initPlayer();
+            initStars(); initPlayer();
             showScreen(gameScreen);
-
-            // Запускаем музыку
             startMusic();
 
-            running  = true;
+            running = true;
             lastTime = performance.now();
-            animId   = requestAnimationFrame(loop);
-
+            animId = requestAnimationFrame(loop);
             startWave();
         }, 200);
     }
 
-    function toMenu() {
+    // Кнопка ИГРАТЬ → показываем модалку ника
+    btnPlay.addEventListener('click', () => {
+        showNickModal();
+    });
+
+    // Кнопка РЕСТАРТ → сразу в игру (ник уже есть)
+    btnRestart.addEventListener('click', () => {
+        launchGame();
+    });
+
+    // Кнопка В МЕНЮ
+    btnMenu.addEventListener('click', () => {
         running = false;
         cancelAnimationFrame(animId);
         stopMusic();
         showScreen(menuScreen);
-    }
+    });
 
     // ============================================================
     //  УПРАВЛЕНИЕ
@@ -1032,9 +1142,5 @@
             firing = false;
         }
     }, { passive: false });
-
-    btnPlay.addEventListener('click', startGame);
-    btnRestart.addEventListener('click', startGame);
-    btnMenu.addEventListener('click', toMenu);
 
 })();
