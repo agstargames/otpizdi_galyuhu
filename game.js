@@ -6,6 +6,22 @@
 (function () {
     'use strict';
 
+    // === МАГИЯ SUPABASE ===
+    const SUPABASE_URL = 'https://cdqffguutlbrocghbovs.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_zWncumIBKvaHA2xOCcuVRw_XEO5Blf8';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Слушаем онлайн-обновления. Если кто-то вписал рекорд, пока ты пялишься в таблицу — она обновится сама!
+    supabase.channel('leaderboard_updates')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leaderboard' }, payload => {
+            const modal = document.getElementById('records-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                if (window.renderRecords) window.renderRecords();
+            }
+        })
+        .subscribe();
+    // ======================
+
     // ======= DOM =======
     const menuScreen    = document.getElementById('menu-screen');
     const gameScreen    = document.getElementById('game-screen');
@@ -41,21 +57,15 @@
         });
     }
 
-    const ENEMY_IMGS = [];
+    const ENEMY_IMGS =[];
     const BOSS_IMG = new Image();
 
     // Загружаем все картинки сразу
-    Promise.all([
-        loadImg('shit1.png'),
-        loadImg('shit2.png'),
-        loadImg('shit3.png'),
-        loadImg('shit4.png'),
-        loadImg('shit_final.png')
-    ]).then(imgs => {
-        ENEMY_IMGS.push(imgs[0], imgs[1], imgs[2], imgs[3]);
-        BOSS_IMG.src = imgs[4].src;
+    Promise.all().then(imgs => {
+        ENEMY_IMGS.push(imgs, imgs, imgs, imgs);
+        BOSS_IMG.src = imgs.src;
         BOSS_IMG.onload = () => {};
-        Object.assign(BOSS_IMG, { width: imgs[4].width, height: imgs[4].height });
+        Object.assign(BOSS_IMG, { width: imgs.width, height: imgs.height });
         imagesLoaded = true;
     });
 
@@ -79,7 +89,7 @@
     // ============================================================
     //  СИСТЕМА НИКОВ
     // ============================================================
-    const DEV_NICKS = ['miralys', 'vikxii', 'dr.hentai'];
+    const DEV_NICKS =;
     const MIRALYS_PASSWORD = 'CHANGE_ME';
     let currentNick = '';
     const devSessionAuth = new Set();
@@ -100,33 +110,92 @@
     function saveLastNick(nick) { localStorage.setItem('galuha_last_nick', nick); }
     function getLastNick() { return localStorage.getItem('galuha_last_nick') || ''; }
 
-    function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return []; } }
+    function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return[]; } }
+    
+    // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ (С SUPABASE) 🔥
     function saveRecord(nick, sc, waveNum) {
+        // Оставляем локальное сохранение для быстрых приветствий
         const records = getRecords();
         const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
         const isDev = isDevNick(nick), isMain = isMainDev(nick);
         let isNew = false;
-        if (existing) { if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; } }
-        else { records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); isNew = true; }
+        
+        if (existing) { 
+            if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; } 
+        } else { 
+            records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); 
+            isNew = true; 
+        }
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
+
+        // 🔥 ПУШИМ В SUPABASE (с исправленной передачей данных) 🔥
+        supabase.from('leaderboard').insert().then(({ error }) => {
+            if (error) console.error('Бля, ошибка базы:', error);
+            else console.log('✅ Глобальный рекорд успешно закинут!');
+        });
+
         return isNew;
     }
+
     function getPlayerRecord(nick) { return getRecords().find(r => r.nick.toLowerCase() === nick.toLowerCase()) || null; }
 
-    window.renderRecords = function () {
+    // 🔥 ОБНОВЛЕННАЯ ОТРИСОВКА РЕКОРДОВ (С SUPABASE) 🔥
+    window.renderRecords = async function () {
         const list = document.getElementById('records-list');
-        const records = getRecords();
-        if (records.length === 0) { list.innerHTML = '<p class="no-records">Пока никто не играл. Будь первым!</p>'; return; }
-        const medals = ['👑', '🥈', '🥉'];
+        list.innerHTML = '<p class="no-records">Связь с космосом... Загружаем топы 🚀</p>';
+
+        // Тянем 50 рекордов из базы
+        const { data, error } = await supabase
+            .from('leaderboard')
+            .select('*')
+            .order('score', { ascending: false })
+            .limit(50);
+
+        if (error) {
+            list.innerHTML = `<p class="no-records">Пиздец, сервак лег: ${error.message}</p>`;
+            return;
+        }
+
+        if (!data || data.length === 0) { 
+            list.innerHTML = '<p class="no-records">Пока никто не навалял Галюхе. Будь первым!</p>'; 
+            return; 
+        }
+
+        // Фильтруем дубликаты, чтобы один игрок не занял весь топ-10
+        const uniquePlayers =[];
+        const seenNicks = new Set();
+        for (const r of data) {
+            const nickLower = r.player_name.toLowerCase().trim();
+            if (!seenNicks.has(nickLower)) {
+                seenNicks.add(nickLower);
+                uniquePlayers.push(r);
+            }
+        }
+        
+        const top10 = uniquePlayers.slice(0, 10); // Отрезаем чисто десяточку
+        const medals =; // Исправленная опечатка друга
         let html = '';
-        records.forEach((r, i) => {
-            const medal = i < 3 ? medals[i] : (i + 1);
+        
+        top10.forEach((r, i) => {
+            const medal = i < 3 ? medals : (i + 1);
             let badge = '';
-            if (r.isMain || r.nick.toLowerCase() === 'miralys') badge = '<span class="dev-badge main-dev">MAIN DEV</span>';
-            else if (r.isDev) badge = '<span class="dev-badge">DEV</span>';
-            html += `<div class="record-row ${i === 0 ? 'gold' : ''}"><span class="record-rank">${medal}</span><span class="record-nick">${r.nick}${badge}</span><span class="record-score">${r.score}</span><span class="record-wave">W${r.wave}</span></div>`;
+            
+            // Проверка на админов всё так же работает!
+            if (isMainDev(r.player_name)) badge = '<span class="dev-badge main-dev">MAIN DEV</span>';
+            else if (isDevNick(r.player_name)) badge = '<span class="dev-badge">DEV</span>';
+            
+            // На случай, если в базе еще нет волны
+            const waveText = r.wave ? `W${r.wave}` : 'W?';
+
+            html += `<div class="record-row ${i === 0 ? 'gold' : ''}">
+                        <span class="record-rank">${medal}</span>
+                        <span class="record-nick">${r.player_name}${badge}</span>
+                        <span class="record-score">${r.score}</span>
+                        <span class="record-wave">${waveText}</span>
+                     </div>`;
         });
+        
         list.innerHTML = html;
     };
 
@@ -204,15 +273,15 @@
     let musicPlaying = false;
 
     function initAudio() { if (audioCtx) return; try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); loadAllSounds(); } catch (e) {} }
-    function loadAllSounds() { const entries = Object.entries(SOUND_FILES); let loaded = 0; entries.forEach(([key, url]) => { fetch(url).then(r => r.arrayBuffer()).then(buf => audioCtx.decodeAudioData(buf)).then(decoded => { soundBuffers[key] = decoded; loaded++; if (loaded === entries.length) audioReady = true; }).catch(() => { loaded++; if (loaded === entries.length) audioReady = true; }); }); }
-    function playSound(name) { if (!audioCtx || !soundBuffers[name]) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); s.buffer = soundBuffers[name]; g.gain.value = SOUND_VOLUME[name] || 0.5; s.connect(g); g.connect(audioCtx.destination); s.start(0); } catch (e) {} }
-    function playGameoverSound() { if (!audioCtx || !soundBuffers['gameover']) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); setTimeout(() => { const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); s.buffer = soundBuffers['gameover']; g.gain.value = 0.7; s.connect(g); g.connect(audioCtx.destination); s.start(0); }, 50); } catch (e) {} }
+    function loadAllSounds() { const entries = Object.entries(SOUND_FILES); let loaded = 0; entries.forEach(() => { fetch(url).then(r => r.arrayBuffer()).then(buf => audioCtx.decodeAudioData(buf)).then(decoded => { soundBuffers = decoded; loaded++; if (loaded === entries.length) audioReady = true; }).catch(() => { loaded++; if (loaded === entries.length) audioReady = true; }); }); }
+    function playSound(name) { if (!audioCtx || !soundBuffers) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); s.buffer = soundBuffers; g.gain.value = SOUND_VOLUME || 0.5; s.connect(g); g.connect(audioCtx.destination); s.start(0); } catch (e) {} }
+    function playGameoverSound() { if (!audioCtx || !soundBuffers) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); setTimeout(() => { const s = audioCtx.createBufferSource(), g = audioCtx.createGain(); s.buffer = soundBuffers; g.gain.value = 0.7; s.connect(g); g.connect(audioCtx.destination); s.start(0); }, 50); } catch (e) {} }
 
     function playSynthShoot() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(), n = audioCtx.currentTime; o.type = 'square'; o.frequency.setValueAtTime(880, n); o.frequency.exponentialRampToValueAtTime(220, n + 0.08); g.gain.setValueAtTime(0.06, n); g.gain.exponentialRampToValueAtTime(0.001, n + 0.1); o.connect(g); g.connect(audioCtx.destination); o.start(n); o.stop(n + 0.1); } catch (e) {} }
     function playSynthHit() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(), n = audioCtx.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(600, n); o.frequency.exponentialRampToValueAtTime(200, n + 0.06); g.gain.setValueAtTime(0.08, n); g.gain.exponentialRampToValueAtTime(0.001, n + 0.08); o.connect(g); g.connect(audioCtx.destination); o.start(n); o.stop(n + 0.08); } catch (e) {} }
     function playSynthWave() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(), n = audioCtx.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(440, n); o.frequency.exponentialRampToValueAtTime(880, n + 0.2); g.gain.setValueAtTime(0.1, n); g.gain.linearRampToValueAtTime(0.1, n + 0.15); g.gain.exponentialRampToValueAtTime(0.001, n + 0.4); o.connect(g); g.connect(audioCtx.destination); o.start(n); o.stop(n + 0.4); } catch (e) {} }
-    function playSynthWaveDone() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime; [523, 659, 784].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.12; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.3); }); } catch (e) {} }
-    function playSynthHeal() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime; [660, 880, 1100].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.1; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.25); }); } catch (e) {} }
+    function playSynthWaveDone() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime;.forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.12; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.3); }); } catch (e) {} }
+    function playSynthHeal() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime;.forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.1; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.25); }); } catch (e) {} }
 
     function startMusic() {
         musicTrack.currentTime = 0; musicPlaying = false;
@@ -247,8 +316,8 @@
     // ======= СОСТОЯНИЕ =======
     let W, H, score, lives, wave, running = false, animId, lastTime;
     let player = {};
-    let bullets = [], enemies = [], particles = [], floatTexts = [], stars = [];
-    let hearts = [], heartTimer = 0;
+    let bullets = [], enemies = [], particles = [], floatTexts = [], stars =[];
+    let hearts =[], heartTimer = 0;
     const HEART_INTERVAL = 18000, HEART_CHANCE = 0.6, MAX_LIVES = 5;
     let toSpawn, spawnTimer, spawnInterval, waveState, wavePauseTimer, bossAlive;
     let keys = {}, pointerX = null, touchActive = false, firing = false, fireTimer = 0;
@@ -256,18 +325,18 @@
 
     function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; if (player && player.y) player.y = H - 100; }
     window.addEventListener('resize', resize); resize();
-    function showScreen(el) { [menuScreen, gameScreen, overScreen].forEach(s => s.classList.add('hidden')); el.classList.remove('hidden'); }
+    function showScreen(el) {.forEach(s => s.classList.add('hidden')); el.classList.remove('hidden'); }
 
     // ===== ЗВЁЗДЫ =====
-    function initStars() { stars = []; for (let i = 0; i < 130; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.8 + 0.3, speed: Math.random() * 2 + 0.5, alpha: Math.random() * 0.7 + 0.3 }); }
+    function initStars() { stars =[]; for (let i = 0; i < 130; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.8 + 0.3, speed: Math.random() * 2 + 0.5, alpha: Math.random() * 0.7 + 0.3 }); }
     function updateStars() { for (const s of stars) { s.y += s.speed; if (s.y > H) { s.y = -2; s.x = Math.random() * W; } } }
     function drawStars() { for (const s of stars) { ctx.globalAlpha = s.alpha; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; }
 
     // ===== ИГРОК =====
     function initPlayer() { player = { x: W / 2, y: H - 100, w: 40, h: 50 }; }
     function updatePlayer(dt) {
-        if (keys['ArrowLeft'] || keys['KeyA']) player.x -= CFG.playerSpeed;
-        if (keys['ArrowRight'] || keys['KeyD']) player.x += CFG.playerSpeed;
+        if (keys || keys) player.x -= CFG.playerSpeed;
+        if (keys || keys) player.x += CFG.playerSpeed;
         if (pointerX !== null) player.x += (pointerX - player.x) * 0.14;
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
@@ -286,7 +355,7 @@
     // ===== ПУЛИ =====
     function shoot() { bullets.push({ x: player.x, y: player.y - 28, w: 4, h: 14 }); playSynthShoot(); }
     function handleFiring(dt) { if (!firing) { fireTimer = 0; return; } fireTimer -= dt; if (fireTimer <= 0) { shoot(); fireTimer = CFG.fireRate; } }
-    function updateBullets() { for (let i = bullets.length - 1; i >= 0; i--) { bullets[i].y -= CFG.bulletSpeed; if (bullets[i].y < -20) bullets.splice(i, 1); } }
+    function updateBullets() { for (let i = bullets.length - 1; i >= 0; i--) { bullets.y -= CFG.bulletSpeed; if (bullets.y < -20) bullets.splice(i, 1); } }
     function drawBullets() { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; for (const b of bullets) { ctx.globalAlpha = 1; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); ctx.globalAlpha = 0.3; ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); } ctx.globalAlpha = 1; ctx.restore(); }
 
     // ===== ВРАГИ =====
@@ -294,13 +363,13 @@
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
         const spd = isBoss ? 0.6 + wave * 0.06 : CFG.enemySpeed + wave * CFG.enemySpeedGrow + Math.random() * 0.8;
         const hp = isBoss ? CFG.bossHp + wave * CFG.bossHpGrow : Math.ceil(CFG.enemyBaseHp + wave * CFG.enemyHpGrow);
-        const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
+        const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS : null);
         enemies.push({ x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz, speed: spd, hp, maxHp: hp, img, boss: !!isBoss, zigzag: !isBoss && Math.random() > 0.4, zigAmp: (Math.random() - 0.5) * 4, angle: Math.random() * Math.PI * 2, flash: 0, bossDir: Math.random() > 0.5 ? 1 : -1, bossDiveTimer: 0, bossDiving: false, bossReturning: false });
     }
     function isOnScreen(e) { return (e.y - e.h / 2) >= 0; }
     function updateEnemies(dt) {
         for (let i = enemies.length - 1; i >= 0; i--) {
-            const e = enemies[i];
+            const e = enemies;
             if (!e.boss) { e.y += e.speed; if (e.zigzag) { e.angle += 0.04; e.x += Math.sin(e.angle) * e.zigAmp; } e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.y > H + e.h) { enemies.splice(i, 1); playerHit(); continue; } }
             if (e.boss) {
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 1.5; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
@@ -327,10 +396,10 @@
 
     // ===== ЧАСТИЦЫ + ТЕКСТ =====
     function boom(x, y, c, col) { for (let i = 0; i < c; i++) { const a = Math.random() * Math.PI * 2, v = Math.random() * 5 + 2; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: Math.random() * 4 + 1.5, life: 1, decay: Math.random() * 0.025 + 0.015, color: col || `hsl(${Math.random() * 50 + 10},100%,55%)` }); } }
-    function updateParticles() { for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= p.decay; if (p.life <= 0) particles.splice(i, 1); } }
+    function updateParticles() { for (let i = particles.length - 1; i >= 0; i--) { const p = particles; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= p.decay; if (p.life <= 0) particles.splice(i, 1); } }
     function drawParticles() { for (const p of particles) { ctx.save(); ctx.globalAlpha = p.life; ctx.shadowBlur = 6; ctx.shadowColor = p.color; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } }
     function addText(x, y, t, c, s, d) { floatTexts.push({ x, y, text: t, color: c, size: s || 22, life: 1, vy: -1.2, decay: d || 0.015 }); }
-    function updateTexts() { for (let i = floatTexts.length - 1; i >= 0; i--) { const t = floatTexts[i]; t.y += t.vy; t.life -= t.decay; if (t.life <= 0) floatTexts.splice(i, 1); } }
+    function updateTexts() { for (let i = floatTexts.length - 1; i >= 0; i--) { const t = floatTexts; t.y += t.vy; t.life -= t.decay; if (t.life <= 0) floatTexts.splice(i, 1); } }
     function drawTexts() { for (const t of floatTexts) { ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Orbitron`; ctx.textAlign = 'center'; ctx.shadowBlur = 12; ctx.shadowColor = t.color; ctx.fillText(t.text, t.x, t.y); ctx.restore(); } }
 
     // ===== СЕРДЕЧКИ =====
@@ -340,7 +409,7 @@
         heartTimer += dt;
         if (heartTimer >= HEART_INTERVAL) { heartTimer = 0; if (Math.random() < HEART_CHANCE && lives < MAX_LIVES) spawnHeart(); }
         for (let i = hearts.length - 1; i >= 0; i--) {
-            const h = hearts[i]; h.y += h.speed; h.glow += 0.05;
+            const h = hearts; h.y += h.speed; h.glow += 0.05;
             if (h.y > H + 40) { hearts.splice(i, 1); continue; }
             if (dist(player.x, player.y, h.x, h.y) < 30) { hearts.splice(i, 1); if (lives < MAX_LIVES) { lives++; elLives.textContent = lives; addText(h.x, h.y, '+1 ❤️', '#ff4444', 24); boom(h.x, h.y, 12, '#ff4444'); playSynthHeal(); } }
         }
@@ -357,12 +426,12 @@
 
     // ===== СТОЛКНОВЕНИЯ =====
     function checkCollisions() {
-        for (let bi = bullets.length - 1; bi >= 0; bi--) { const b = bullets[bi];
-            for (let ei = enemies.length - 1; ei >= 0; ei--) { const e = enemies[ei]; if (!isOnScreen(e)) continue;
+        for (let bi = bullets.length - 1; bi >= 0; bi--) { const b = bullets;
+            for (let ei = enemies.length - 1; ei >= 0; ei--) { const e = enemies; if (!isOnScreen(e)) continue;
                 if (dist(b.x, b.y, e.x, e.y) < e.w / 2 + 6) { bullets.splice(bi, 1); e.hp--; e.flash = 80; boom(b.x, b.y, 4, '#0ff'); playSynthHit();
                     if (e.hp <= 0) { const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score; boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80'); addText(e.x, e.y, '+' + pts, e.boss ? '#ff0' : '#0ff');
                         if (e.boss) { bossAlive = false; doShake(16, 600); addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008); playSound('bossKill'); } else playSound('kill'); enemies.splice(ei, 1); } break; } } }
-        if (!invincible) { for (let ei = enemies.length - 1; ei >= 0; ei--) { const e = enemies[ei]; if (!isOnScreen(e)) continue;
+        if (!invincible) { for (let ei = enemies.length - 1; ei >= 0; ei--) { const e = enemies; if (!isOnScreen(e)) continue;
             if (dist(player.x, player.y, e.x, e.y) < e.w / 2 + 16) { if (!e.boss) enemies.splice(ei, 1); boom(player.x, player.y, 22, '#f44'); playerHit(); break; } } }
     }
 
@@ -398,7 +467,7 @@
         resize();
         score = 0; lives = CFG.lives; wave = 1;
         elScore.textContent = '0'; elLives.textContent = lives; elWave.textContent = '1';
-        bullets = []; enemies = []; particles = []; floatTexts = []; hearts = []; heartTimer = 0;
+        bullets = []; enemies = []; particles = []; floatTexts = []; hearts =[]; heartTimer = 0;
         invincible = false; invTimer = 0; bossAlive = false; shakeX = shakeY = shakeAmt = shakeDur = 0;
         fireTimer = 0; firing = false; pointerX = null; touchActive = false;
         initStars(); initPlayer(); showScreen(gameScreen);
@@ -418,14 +487,14 @@
     btnMenu.addEventListener('click', () => { running = false; cancelAnimationFrame(animId); stopMusic(); showScreen(menuScreen); });
 
     // ===== УПРАВЛЕНИЕ =====
-    window.addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'Space') { e.preventDefault(); firing = true; } });
-    window.addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Space') firing = false; });
+    window.addEventListener('keydown', e => { keys = true; if (e.code === 'Space') { e.preventDefault(); firing = true; } });
+    window.addEventListener('keyup', e => { keys = false; if (e.code === 'Space') firing = false; });
     canvas.addEventListener('mousemove', e => { if (running && !isMobile) pointerX = e.clientX; });
     canvas.addEventListener('mousedown', () => { if (running && !isMobile) firing = true; });
     canvas.addEventListener('mouseup', () => { if (!isMobile) firing = false; });
     canvas.addEventListener('mouseleave', () => { if (!isMobile) pointerX = null; });
-    canvas.addEventListener('touchstart', e => { e.preventDefault(); if (!running) return; touchActive = true; if (e.touches.length) pointerX = e.touches[0].clientX; firing = true; }, { passive: false });
-    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!running) return; if (e.touches.length) pointerX = e.touches[0].clientX; }, { passive: false });
-    canvas.addEventListener('touchend', e => { e.preventDefault(); if (e.touches.length > 0) pointerX = e.touches[0].clientX; else { pointerX = null; touchActive = false; firing = false; } }, { passive: false });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); if (!running) return; touchActive = true; if (e.touches.length) pointerX = e.touches.clientX; firing = true; }, { passive: false });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!running) return; if (e.touches.length) pointerX = e.touches.clientX; }, { passive: false });
+    canvas.addEventListener('touchend', e => { e.preventDefault(); if (e.touches.length > 0) pointerX = e.touches.clientX; else { pointerX = null; touchActive = false; firing = false; } }, { passive: false });
 
 })();
