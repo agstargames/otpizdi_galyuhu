@@ -231,7 +231,7 @@ html, body {
     letter-spacing: 0.5px;
 }
 
-/* ===== МОДАЛКА ===== */
+/* ===== МОДАЛКИ ===== */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0;
@@ -299,14 +299,229 @@ html, body {
     text-shadow: 0 0 6px #ff444433;
 }
 
-@keyframes modalFadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+/* ===== МОДАЛКА НИКА ===== */
+.nick-box {
+    border-color: #0ff;
+    box-shadow:
+        0 0 30px #0ff44,
+        0 0 60px #0ff22,
+        inset 0 0 30px rgba(0, 255, 255, 0.05);
 }
 
-@keyframes modalPop {
-    from { opacity: 0; transform: scale(0.7); }
-    to   { opacity: 1; transform: scale(1); }
+.nick-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(0.7rem, 2.8vw, 1rem);
+    color: #0ff;
+    text-shadow: 0 0 12px #0ff;
+    margin-bottom: 20px;
+}
+
+.nick-input {
+    display: block;
+    width: 100%;
+    padding: 14px 18px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    font-weight: 700;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid #555;
+    border-radius: 8px;
+    outline: none;
+    text-align: center;
+    letter-spacing: 1px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    margin-bottom: 16px;
+}
+
+.nick-input::placeholder {
+    color: #555;
+    font-weight: 400;
+}
+
+.nick-input:focus {
+    border-color: #0ff;
+    box-shadow: 0 0 15px #0ff44;
+}
+
+.nick-welcome {
+    margin-bottom: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(0, 255, 255, 0.08);
+    border: 1px solid #0ff44;
+}
+
+.nick-welcome p {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.65rem, 2.2vw, 0.85rem);
+    font-weight: 600;
+    color: #0ff;
+    line-height: 1.7;
+    text-shadow: 0 0 6px #0ff44;
+}
+
+.nick-welcome .welcome-record {
+    color: #ffcc00;
+    text-shadow: 0 0 6px #ffcc0044;
+    margin-top: 4px;
+}
+
+.nick-go-btn {
+    margin-top: 8px;
+    padding: 14px 36px;
+}
+
+/* ===== ПРОВЕРКА РАЗРАБОТЧИКА ===== */
+.dev-check {
+    margin-bottom: 16px;
+    padding: 14px;
+    border-radius: 8px;
+    background: rgba(255, 204, 0, 0.08);
+    border: 1px solid #ffcc0044;
+    animation: modalFadeIn 0.4s ease-out;
+}
+
+.dev-check-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.65rem, 2.2vw, 0.82rem);
+    font-weight: 600;
+    color: #ffcc00;
+    line-height: 1.7;
+    text-shadow: 0 0 8px #ffcc0044;
+    margin-bottom: 12px;
+}
+
+.dev-check-text.setup-text {
+    color: #0f0;
+    text-shadow: 0 0 8px #0f044;
+}
+
+.dev-password-input {
+    border-color: #ffcc00;
+    margin-bottom: 0;
+}
+
+.dev-password-input:focus {
+    border-color: #ffcc00;
+    box-shadow: 0 0 15px #ffcc0044;
+}
+
+/* ===== МОДАЛКА РЕКОРДЫ ===== */
+.records-box {
+    border-color: #ffcc00;
+    box-shadow:
+        0 0 30px #ffcc0044,
+        0 0 60px #ffcc0022,
+        inset 0 0 30px rgba(255, 204, 0, 0.05);
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.records-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(0.65rem, 2.5vw, 0.9rem);
+    color: #ffcc00;
+    text-shadow: 0 0 12px #ffcc00;
+    margin-bottom: 20px;
+}
+
+.records-list {
+    text-align: left;
+}
+
+.record-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid #ffffff11;
+    transition: background 0.2s ease;
+}
+
+.record-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.record-row.gold {
+    background: rgba(255, 204, 0, 0.08);
+    border-color: #ffcc0033;
+}
+
+.record-rank {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(0.5rem, 1.8vw, 0.65rem);
+    color: #888;
+    min-width: 36px;
+}
+
+.record-row.gold .record-rank {
+    color: #ffcc00;
+}
+
+.record-nick {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.7rem, 2.2vw, 0.85rem);
+    font-weight: 700;
+    color: #fff;
+    flex: 1;
+    margin: 0 10px;
+}
+
+.record-nick .dev-badge {
+    font-size: 0.6rem;
+    color: #bf5fff;
+    text-shadow: 0 0 6px #bf5fff;
+    margin-left: 6px;
+}
+
+.record-score {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(0.5rem, 1.8vw, 0.65rem);
+    color: #0ff;
+    text-shadow: 0 0 6px #0ff;
+}
+
+.record-wave {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.5rem, 1.6vw, 0.6rem);
+    color: #888;
+    margin-left: 10px;
+    min-width: 50px;
+    text-align: right;
+}
+
+.no-records {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.7rem, 2.2vw, 0.85rem);
+    color: #666;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.7;
+}
+
+/* ===== GAME OVER ДОПОЛНЕНИЯ ===== */
+.gameover-nick {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(0.75rem, 2.5vw, 1rem);
+    font-weight: 700;
+    color: #bf5fff;
+    margin-bottom: 16px;
+    text-shadow: 0 0 8px #bf5fff44;
+}
+
+.new-record {
+    font-family: 'Press Start 2P', cursive;
+    font-size: clamp(0.7rem, 2.5vw, 0.95rem);
+    color: #ffcc00;
+    text-shadow: 0 0 15px #ffcc00, 0 0 30px #ff990066;
+    margin-bottom: 20px;
+    animation: recordPulse 0.6s ease-in-out infinite;
+}
+
+@keyframes recordPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
 }
 
 /* ===== FAQ СЕКЦИЯ ===== */
@@ -496,7 +711,7 @@ html, body {
     font-size: clamp(0.8rem, 3vw, 1.2rem);
     font-weight: 700;
     color: #ff8888;
-    margin-bottom: 30px;
+    margin-bottom: 16px;
     text-shadow: 0 0 8px #ff444444;
     line-height: 1.6;
 }
@@ -512,7 +727,7 @@ html, body {
 }
 
 .final-wave {
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     color: #ffcc00;
     text-shadow: 0 0 8px #ffcc00;
 }
@@ -544,6 +759,16 @@ html, body {
     40%      { transform: translateX(10px); }
     60%      { transform: translateX(-6px); }
     80%      { transform: translateX(6px); }
+}
+
+@keyframes modalFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes modalPop {
+    from { opacity: 0; transform: scale(0.7); }
+    to   { opacity: 1; transform: scale(1); }
 }
 
 /* ===== АДАПТИВ ===== */
