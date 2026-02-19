@@ -29,12 +29,52 @@
     const btnNickGo     = document.getElementById('btn-nick-go');
     const impostorModal = document.getElementById('impostor-modal');
 
-    // ======= КАРТИНКИ =======
-    const ENEMY_IMGS = ['shit1.png','shit2.png','shit3.png','shit4.png'].map(src => {
-        const img = new Image(); img.src = src; return img;
-    });
+    // ======= КАРТИНКИ С ПРЕДЗАГРУЗКОЙ =======
+    let imagesLoaded = false;
+
+    function loadImg(src) {
+        return new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(img);
+            img.src = src;
+        });
+    }
+
+    const ENEMY_IMGS = [];
     const BOSS_IMG = new Image();
-    BOSS_IMG.src = 'shit_final.png';
+
+    // Загружаем все картинки сразу
+    Promise.all([
+        loadImg('shit1.png'),
+        loadImg('shit2.png'),
+        loadImg('shit3.png'),
+        loadImg('shit4.png'),
+        loadImg('shit_final.png')
+    ]).then(imgs => {
+        ENEMY_IMGS.push(imgs[0], imgs[1], imgs[2], imgs[3]);
+        BOSS_IMG.src = imgs[4].src;
+        BOSS_IMG.onload = () => {};
+        Object.assign(BOSS_IMG, { width: imgs[4].width, height: imgs[4].height });
+        imagesLoaded = true;
+    });
+
+    // Фоллбэк отрисовки если картинка не загружена
+    function drawImgSafe(img, x, y, w, h) {
+        if (img && img.complete && img.naturalWidth > 0) {
+            ctx.drawImage(img, x, y, w, h);
+        } else {
+            ctx.fillStyle = '#ff6600';
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeRect(x, y, w, h);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Orbitron';
+            ctx.textAlign = 'center';
+            ctx.fillText('👵', x + w / 2, y + h / 2 + 4);
+        }
+    }
 
     // ============================================================
     //  СИСТЕМА НИКОВ
@@ -60,19 +100,14 @@
     function saveLastNick(nick) { localStorage.setItem('galuha_last_nick', nick); }
     function getLastNick() { return localStorage.getItem('galuha_last_nick') || ''; }
 
-    // === Рекорды ===
-    function getRecords() {
-        try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; }
-        catch (e) { return []; }
-    }
+    function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return []; } }
     function saveRecord(nick, sc, waveNum) {
         const records = getRecords();
         const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
         const isDev = isDevNick(nick), isMain = isMainDev(nick);
         let isNew = false;
-        if (existing) {
-            if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; }
-        } else { records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); isNew = true; }
+        if (existing) { if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; } }
+        else { records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); isNew = true; }
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
         return isNew;
@@ -105,7 +140,7 @@
         const lastNick = getLastNick();
         nickInput.value = lastNick;
         if (lastNick) {
-            if (isDevNick(lastNick) && isDevSessionOk(lastNick)) { currentNick = lastNick; hideNickModal(); launchGame(); return; }
+            if (isDevNick(lastNick) && isDevSessionOk(lastNick)) { currentNick = lastNick; hideNickModal(); startGameDirect(); return; }
             handleNickInput(lastNick);
         }
         nickInput.focus();
@@ -113,18 +148,14 @@
     function hideNickModal() { nickModal.classList.add('hidden'); }
 
     function handleNickInput(nick) {
-        nickWelcome.classList.add('hidden');
-        devCheck.classList.add('hidden');
-        devCheck.innerHTML = '';
+        nickWelcome.classList.add('hidden'); devCheck.classList.add('hidden'); devCheck.innerHTML = '';
         if (!nick) return;
         if (isDevNick(nick)) {
             if (isDevSessionOk(nick)) {
                 const rec = getPlayerRecord(nick);
                 nickWelcome.classList.remove('hidden');
                 const role = isMainDev(nick) ? '(MAIN DEV)' : '(DEV)';
-                nickWelcome.innerHTML = rec
-                    ? `<p>С возвращением, <strong>${rec.nick}</strong>! ${role} 👋</p><p class="welcome-record">Твой рекорд: ${rec.score} очков (волна ${rec.wave})</p>`
-                    : `<p>С возвращением, <strong>${nick}</strong>! ${role} 👋</p>`;
+                nickWelcome.innerHTML = rec ? `<p>С возвращением, <strong>${rec.nick}</strong>! ${role} 👋</p><p class="welcome-record">Твой рекорд: ${rec.score} очков (волна ${rec.wave})</p>` : `<p>С возвращением, <strong>${nick}</strong>! ${role} 👋</p>`;
                 return;
             }
             devCheck.classList.remove('hidden');
@@ -147,15 +178,15 @@
         const nick = nickInput.value.trim();
         if (!nick) { nickInput.style.borderColor = '#f44'; setTimeout(() => { nickInput.style.borderColor = '#555'; }, 1000); return; }
         if (isDevNick(nick) && !isDevSessionOk(nick)) {
-            const passInput = getPassInput();
-            const pass = passInput ? passInput.value : '';
+            const passInput = getPassInput(); const pass = passInput ? passInput.value : '';
             if (!pass) { if (passInput) { passInput.style.borderColor = '#f44'; setTimeout(() => { passInput.style.borderColor = '#ffcc00'; }, 1000); } return; }
             const n = nick.toLowerCase().trim();
             if (n === 'miralys' || hasDevPassword(nick)) { if (!checkDevPassword(nick, pass)) { hideNickModal(); impostorModal.classList.remove('hidden'); return; } }
             else { saveDevPassword(nick, pass); }
             markDevSession(nick);
         }
-        currentNick = nick; saveLastNick(nick); hideNickModal(); launchGame();
+        currentNick = nick; saveLastNick(nick); hideNickModal();
+        startGameDirect();
     });
 
     nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') { const pi = getPassInput(); if (pi && !pi.value) pi.focus(); else btnNickGo.click(); } });
@@ -183,11 +214,32 @@
     function playSynthWaveDone() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime; [523, 659, 784].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.12; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.3); }); } catch (e) {} }
     function playSynthHeal() { if (!audioCtx) return; try { if (audioCtx.state === 'suspended') audioCtx.resume(); const n = audioCtx.currentTime; [660, 880, 1100].forEach((f, i) => { const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.1; o.type = 'sine'; o.frequency.setValueAtTime(f, t); g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 0.25); }); } catch (e) {} }
 
-    function startMusic() { musicTrack.currentTime = 0; musicPlaying = false; function tryPlay() { musicTrack.play().then(() => { musicPlaying = true; }).catch(() => { if (!musicPlaying && running) setTimeout(tryPlay, 500); }); } tryPlay(); }
+    function startMusic() {
+        musicTrack.currentTime = 0; musicPlaying = false;
+        function tryPlay() {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            musicTrack.play().then(() => { musicPlaying = true; })
+                .catch(() => { if (!musicPlaying && running) setTimeout(tryPlay, 300); });
+        }
+        tryPlay();
+    }
     function stopMusic() { musicPlaying = false; musicTrack.pause(); musicTrack.currentTime = 0; }
-    function unlockAudio() { if (audioUnlocked) return; audioUnlocked = true; initAudio(); const v = musicTrack.volume; musicTrack.volume = 0.001; musicTrack.play().then(() => { musicTrack.pause(); musicTrack.currentTime = 0; musicTrack.volume = v; }).catch(() => { musicTrack.volume = v; }); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
+
+    function unlockAudio() {
+        initAudio();
+        if (audioUnlocked) {
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            return;
+        }
+        audioUnlocked = true;
+        const v = musicTrack.volume; musicTrack.volume = 0.001;
+        musicTrack.play().then(() => { musicTrack.pause(); musicTrack.currentTime = 0; musicTrack.volume = v; }).catch(() => { musicTrack.volume = v; });
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('touchend', unlockAudio);
 
     // ======= КОНФИГ =======
     const CFG = { playerSpeed: 7, bulletSpeed: 12, fireRate: 140, enemyBaseHp: 1, enemyHpGrow: 0.15, enemySpeed: 1.0, enemySpeedGrow: 0.08, enemyCount: 4, bossEvery: 5, bossHp: 15, bossHpGrow: 2, lives: 3, invincTime: 2000, wavePause: 2500, spawnDelay: 1200 };
@@ -242,7 +294,8 @@
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
         const spd = isBoss ? 0.6 + wave * 0.06 : CFG.enemySpeed + wave * CFG.enemySpeedGrow + Math.random() * 0.8;
         const hp = isBoss ? CFG.bossHp + wave * CFG.bossHpGrow : Math.ceil(CFG.enemyBaseHp + wave * CFG.enemyHpGrow);
-        enemies.push({ x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz, speed: spd, hp, maxHp: hp, img: isBoss ? BOSS_IMG : ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)], boss: !!isBoss, zigzag: !isBoss && Math.random() > 0.4, zigAmp: (Math.random() - 0.5) * 4, angle: Math.random() * Math.PI * 2, flash: 0, bossDir: Math.random() > 0.5 ? 1 : -1, bossDiveTimer: 0, bossDiving: false, bossReturning: false });
+        const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
+        enemies.push({ x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz, speed: spd, hp, maxHp: hp, img, boss: !!isBoss, zigzag: !isBoss && Math.random() > 0.4, zigAmp: (Math.random() - 0.5) * 4, angle: Math.random() * Math.PI * 2, flash: 0, bossDir: Math.random() > 0.5 ? 1 : -1, bossDiveTimer: 0, bossDiving: false, bossReturning: false });
     }
     function isOnScreen(e) { return (e.y - e.h / 2) >= 0; }
     function updateEnemies(dt) {
@@ -265,7 +318,7 @@
         for (const e of enemies) {
             if (!e.boss && !isOnScreen(e)) continue; ctx.save();
             if (e.flash > 0) { ctx.shadowBlur = 25; ctx.shadowColor = '#fff'; }
-            ctx.drawImage(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
+            drawImgSafe(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
             if (e.maxHp > 1 && e.hp > 0) { const bw = e.w * (e.boss ? 1.3 : 1), bh = e.boss ? 8 : 5, bx = e.x - bw / 2, by = e.y - e.h / 2 - (e.boss ? 20 : 12), r = e.hp / e.maxHp; ctx.fillStyle = '#222'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = r > 0.5 ? '#0f0' : r > 0.25 ? '#ff0' : '#f00'; ctx.fillRect(bx, by, bw * r, bh); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh); }
             if (e.boss && e.hp > 0) { ctx.fillStyle = '#ff0'; ctx.font = 'bold 14px Orbitron'; ctx.textAlign = 'center'; ctx.shadowBlur = 8; ctx.shadowColor = '#ff0'; ctx.fillText('ГАЛЮХА-БОСС', e.x, e.y - e.h / 2 - 28); }
             ctx.restore();
@@ -282,33 +335,22 @@
 
     // ===== СЕРДЕЧКИ =====
     function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
-
     function spawnHeart() { hearts.push({ x: Math.random() * (W - 60) + 30, y: -30, size: 22, speed: 1.5 + Math.random() * 0.8, glow: 0 }); }
-
     function updateHearts(dt) {
         heartTimer += dt;
         if (heartTimer >= HEART_INTERVAL) { heartTimer = 0; if (Math.random() < HEART_CHANCE && lives < MAX_LIVES) spawnHeart(); }
         for (let i = hearts.length - 1; i >= 0; i--) {
             const h = hearts[i]; h.y += h.speed; h.glow += 0.05;
             if (h.y > H + 40) { hearts.splice(i, 1); continue; }
-            if (dist(player.x, player.y, h.x, h.y) < 30) {
-                hearts.splice(i, 1);
-                if (lives < MAX_LIVES) { lives++; elLives.textContent = lives; addText(h.x, h.y, '+1 ❤️', '#ff4444', 24); boom(h.x, h.y, 12, '#ff4444'); playSynthHeal(); }
-            }
+            if (dist(player.x, player.y, h.x, h.y) < 30) { hearts.splice(i, 1); if (lives < MAX_LIVES) { lives++; elLives.textContent = lives; addText(h.x, h.y, '+1 ❤️', '#ff4444', 24); boom(h.x, h.y, 12, '#ff4444'); playSynthHeal(); } }
         }
     }
-
     function drawHearts() {
         for (const h of hearts) {
-            ctx.save();
-            const pulse = 1 + Math.sin(h.glow) * 0.15;
-            ctx.translate(h.x, h.y); ctx.scale(pulse, pulse);
-            ctx.shadowBlur = 15 + Math.sin(h.glow * 2) * 5; ctx.shadowColor = '#ff4444';
-            ctx.fillStyle = '#ff4444'; ctx.beginPath(); ctx.moveTo(0, -8);
-            ctx.bezierCurveTo(-12, -22, -26, -10, -14, 4); ctx.lineTo(0, 18);
-            ctx.lineTo(14, 4); ctx.bezierCurveTo(26, -10, 12, -22, 0, -8); ctx.fill();
-            ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath();
-            ctx.ellipse(-6, -10, 4, 3, -0.5, 0, Math.PI * 2); ctx.fill();
+            ctx.save(); const pulse = 1 + Math.sin(h.glow) * 0.15; ctx.translate(h.x, h.y); ctx.scale(pulse, pulse);
+            ctx.shadowBlur = 15 + Math.sin(h.glow * 2) * 5; ctx.shadowColor = '#ff4444'; ctx.fillStyle = '#ff4444';
+            ctx.beginPath(); ctx.moveTo(0, -8); ctx.bezierCurveTo(-12, -22, -26, -10, -14, 4); ctx.lineTo(0, 18); ctx.lineTo(14, 4); ctx.bezierCurveTo(26, -10, 12, -22, 0, -8); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.beginPath(); ctx.ellipse(-6, -10, 4, 3, -0.5, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
         }
     }
@@ -346,20 +388,33 @@
     }
 
     // ===== СТАРТ =====
-    function launchGame() {
+    // Вызывается НАПРЯМУЮ из обработчика клика (не через setTimeout) — для музыки
+    function startGameDirect() {
         unlockAudio();
-        setTimeout(() => { resize(); score = 0; lives = CFG.lives; wave = 1;
-            elScore.textContent = '0'; elLives.textContent = lives; elWave.textContent = '1';
-            bullets = []; enemies = []; particles = []; floatTexts = []; hearts = []; heartTimer = 0;
-            invincible = false; invTimer = 0; bossAlive = false; shakeX = shakeY = shakeAmt = shakeDur = 0;
-            fireTimer = 0; firing = false; pointerX = null; touchActive = false;
-            initStars(); initPlayer(); showScreen(gameScreen); startMusic();
-            running = true; lastTime = performance.now(); animId = requestAnimationFrame(loop); startWave();
-        }, 200);
+        // Стартуем музыку СРАЗУ из контекста клика
+        musicTrack.currentTime = 0;
+        musicTrack.play().then(() => { musicPlaying = true; }).catch(() => {});
+
+        resize();
+        score = 0; lives = CFG.lives; wave = 1;
+        elScore.textContent = '0'; elLives.textContent = lives; elWave.textContent = '1';
+        bullets = []; enemies = []; particles = []; floatTexts = []; hearts = []; heartTimer = 0;
+        invincible = false; invTimer = 0; bossAlive = false; shakeX = shakeY = shakeAmt = shakeDur = 0;
+        fireTimer = 0; firing = false; pointerX = null; touchActive = false;
+        initStars(); initPlayer(); showScreen(gameScreen);
+
+        // Даём 1 кадр на отрисовку экрана, потом запускаем
+        requestAnimationFrame(() => {
+            resize(); // Повторный resize когда canvas уже виден
+            running = true; lastTime = performance.now();
+            animId = requestAnimationFrame(loop); startWave();
+        });
     }
 
-    btnPlay.addEventListener('click', () => showNickModal());
-    btnRestart.addEventListener('click', () => launchGame());
+    function launchGame() { startGameDirect(); }
+
+    btnPlay.addEventListener('click', () => { unlockAudio(); showNickModal(); });
+    btnRestart.addEventListener('click', () => { unlockAudio(); launchGame(); });
     btnMenu.addEventListener('click', () => { running = false; cancelAnimationFrame(animId); stopMusic(); showScreen(menuScreen); });
 
     // ===== УПРАВЛЕНИЕ =====
