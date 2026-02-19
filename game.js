@@ -11,7 +11,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_zWncumIBKvaHA2xOCcuVRw_XEO5Blf8';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Слушаем онлайн-обновления. Если кто-то вписал рекорд, пока ты пялишься в таблицу — она обновится сама!
+    // Слушаем онлайн-обновления. Если кто-то вписал рекорд, таблица обновится сама!
     supabase.channel('leaderboard_updates')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leaderboard' }, payload => {
             const modal = document.getElementById('records-modal');
@@ -90,7 +90,7 @@
     //  СИСТЕМА НИКОВ
     // ============================================================
     const DEV_NICKS =;
-    const MIRALYS_PASSWORD = 'шайлили';
+    const MIRALYS_PASSWORD = 'CHANGE_ME';
     let currentNick = '';
     const devSessionAuth = new Set();
 
@@ -114,7 +114,6 @@
     
     // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ (С SUPABASE) 🔥
     function saveRecord(nick, sc, waveNum) {
-        // Оставляем локальное сохранение для быстрых приветствий
         const records = getRecords();
         const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
         const isDev = isDevNick(nick), isMain = isMainDev(nick);
@@ -129,7 +128,7 @@
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
 
-        // 🔥 ПУШИМ В SUPABASE (с исправленной передачей данных) 🔥
+        // 🔥 ПУШИМ В SUPABASE 🔥
         supabase.from('leaderboard').insert().then(({ error }) => {
             if (error) console.error('Бля, ошибка базы:', error);
             else console.log('✅ Глобальный рекорд успешно закинут!');
@@ -145,7 +144,6 @@
         const list = document.getElementById('records-list');
         list.innerHTML = '<p class="no-records">Связь с космосом... Загружаем топы 🚀</p>';
 
-        // Тянем 50 рекордов из базы
         const { data, error } = await supabase
             .from('leaderboard')
             .select('*')
@@ -162,7 +160,6 @@
             return; 
         }
 
-        // Фильтруем дубликаты, чтобы один игрок не занял весь топ-10
         const uniquePlayers =[];
         const seenNicks = new Set();
         for (const r of data) {
@@ -173,19 +170,17 @@
             }
         }
         
-        const top10 = uniquePlayers.slice(0, 10); // Отрезаем чисто десяточку
-        const medals =; // Исправленная опечатка друга
+        const top10 = uniquePlayers.slice(0, 10);
+        const medals =;
         let html = '';
         
         top10.forEach((r, i) => {
             const medal = i < 3 ? medals : (i + 1);
             let badge = '';
             
-            // Проверка на админов всё так же работает!
             if (isMainDev(r.player_name)) badge = '<span class="dev-badge main-dev">MAIN DEV</span>';
             else if (isDevNick(r.player_name)) badge = '<span class="dev-badge">DEV</span>';
             
-            // На случай, если в базе еще нет волны
             const waveText = r.wave ? `W${r.wave}` : 'W?';
 
             html += `<div class="record-row ${i === 0 ? 'gold' : ''}">
@@ -457,24 +452,21 @@
     }
 
     // ===== СТАРТ =====
-    // Вызывается НАПРЯМУЮ из обработчика клика (не через setTimeout) — для музыки
     function startGameDirect() {
         unlockAudio();
-        // Стартуем музыку СРАЗУ из контекста клика
         musicTrack.currentTime = 0;
         musicTrack.play().then(() => { musicPlaying = true; }).catch(() => {});
 
         resize();
         score = 0; lives = CFG.lives; wave = 1;
         elScore.textContent = '0'; elLives.textContent = lives; elWave.textContent = '1';
-        bullets = []; enemies = []; particles = []; floatTexts = []; hearts =[]; heartTimer = 0;
+        bullets =[]; enemies = []; particles = []; floatTexts = []; hearts =[]; heartTimer = 0;
         invincible = false; invTimer = 0; bossAlive = false; shakeX = shakeY = shakeAmt = shakeDur = 0;
         fireTimer = 0; firing = false; pointerX = null; touchActive = false;
         initStars(); initPlayer(); showScreen(gameScreen);
 
-        // Даём 1 кадр на отрисовку экрана, потом запускаем
         requestAnimationFrame(() => {
-            resize(); // Повторный resize когда canvas уже виден
+            resize(); 
             running = true; lastTime = performance.now();
             animId = requestAnimationFrame(loop); startWave();
         });
@@ -498,4 +490,3 @@
     canvas.addEventListener('touchend', e => { e.preventDefault(); if (e.touches.length > 0) pointerX = e.touches.clientX; else { pointerX = null; touchActive = false; firing = false; } }, { passive: false });
 
 })();
-
