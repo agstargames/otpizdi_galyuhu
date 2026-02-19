@@ -11,20 +11,30 @@
     <!-- ===== ГЛАВНЫЙ ЭКРАН ===== -->
     <div id="menu-screen">
         <div class="stars-bg" id="stars-menu"></div>
-        <div class="menu-buttons">
-    <button id="btn-play" class="btn-neon">🚀 ИГРАТЬ</button>
-    <br>
-    <button id="btn-records" class="btn-neon btn-secondary" onclick="showRecords()">🏆 РЕКОРДЫ</button>
-    <br>
-    <button id="btn-multi" class="btn-disabled" onclick="showMultiModal()">
-        🌐 Мультиплеер
-        <span class="btn-sub">(в стадии разработки)</span>
-    </button>
-    <br>
-    <a href="https://t.me/СЮДА_ВСТАВЬ_ССЫЛКУ" target="_blank" class="btn-telegram">
-        ✈️ Мы в Телеграме
-    </a>
-        </div>
+        <div class="menu-content">
+            <div class="studio-logo">
+                <span class="holding">ВайкокинStar Games presents</span>
+                <span class="studio">AUTISTIC GAMES</span>
+            </div>
+            <h1 class="game-title">
+                <span class="title-sub">Симулятор:</span>
+                <span class="title-main">ОТПИЗДИ ГАЛЮХУ</span>
+            </h1>
+            <div class="menu-buttons">
+                <button id="btn-play" class="btn-neon">🚀 ИГРАТЬ</button>
+                <br>
+                <button id="btn-records" class="btn-neon btn-secondary" onclick="showRecords()">🏆 РЕКОРДЫ</button>
+                <br>
+                <button id="btn-multi" class="btn-disabled" onclick="showMultiModal()">
+                    🌐 Мультиплеер
+                    <span class="btn-sub">(в стадии разработки)</span>
+                </button>
+                <br>
+                <a href="https://t.me/СЮДА_ВСТАВЬ_ССЫЛКУ" target="_blank" class="btn-telegram">
+                    ✈️ Мы в Телеграме
+                </a>
+            </div>
+
             <!-- ===== FAQ СЕКЦИЯ ===== -->
             <div class="faq-section">
                 <div class="faq-item">
@@ -76,13 +86,7 @@
             <h3 class="nick-title">КАК ТЕБЯ ЗВАТЬ?</h3>
             <input type="text" id="nick-input" class="nick-input" placeholder="Введи ник..." maxlength="16" autocomplete="off">
             <div id="nick-welcome" class="nick-welcome hidden"></div>
-
-            <!-- Блок проверки разработчика -->
-            <div id="dev-check" class="dev-check hidden">
-                <p class="dev-check-text">Это никнейм разработчика. Пруфани, что это ты.</p>
-                <input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Пароль..." maxlength="32" autocomplete="off">
-            </div>
-
+            <div id="dev-check" class="dev-check hidden"></div>
             <button id="btn-nick-go" class="btn-neon nick-go-btn">ВПЕРЁД! 🚀</button>
         </div>
     </div>
@@ -147,5 +151,3 @@
     </script>
 </body>
 </html>
-
-
