@@ -47,7 +47,7 @@
     const DEV_NICKS = ['miralys', 'vikxii', 'dr.hentai'];
 
     // Пароль Miralys (ЗАМЕНИ НА СВОЙ):
-    const MIRALYS_PASSWORD = 'шайлили<3''';
+    const MIRALYS_PASSWORD = 'CHANGE_ME';
 
     let currentNick = '';
 
@@ -463,7 +463,7 @@
 
     document.addEventListener('click', unlockAudio);
     document.addEventListener('touchstart', unlockAudio);
-   
+
     // ======= КОНФИГ =======
     const CFG = {
         playerSpeed : 7,
