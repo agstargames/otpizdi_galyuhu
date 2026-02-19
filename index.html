@@ -23,6 +23,8 @@
             <div class="menu-buttons">
                 <button id="btn-play" class="btn-neon">🚀 ИГРАТЬ</button>
                 <br>
+                <button id="btn-records" class="btn-neon btn-secondary" onclick="showRecords()">🏆 РЕКОРДЫ</button>
+                <br>
                 <button id="btn-multi" class="btn-disabled" onclick="showMultiModal()">
                     🌐 Мультиплеер
                     <span class="btn-sub">(в стадии разработки)</span>
@@ -53,16 +55,52 @@
             </div>
 
             <div class="menu-footer">
-                <p>v1.0 | © Autistic Games, 2026</p>
+                <p>v1.1 | © Autistic Games, 2026</p>
             </div>
         </div>
     </div>
 
     <!-- ===== МОДАЛКА МУЛЬТИПЛЕЕР ===== -->
-    <div id="multi-modal" class="modal-overlay hidden" onclick="hideMultiModal(event)">
+    <div id="multi-modal" class="modal-overlay hidden" onclick="hideModal('multi-modal', event)">
         <div class="modal-box">
-            <button class="modal-close" onclick="hideMultiModal(event)">✕</button>
-            <p class="modal-text">Ты чё, еблан? Мы же сказали, что режим в стадии разработки</p>
+            <button class="modal-close" onclick="hideModal('multi-modal', event)">✕</button>
+            <p class="modal-text">Ты чё, еблан? Мы же сказали, что режим в стадии разработки 🤡</p>
+        </div>
+    </div>
+
+    <!-- ===== МОДАЛКА САМОЗВАНЕЦ ===== -->
+    <div id="impostor-modal" class="modal-overlay hidden" onclick="hideModal('impostor-modal', event)">
+        <div class="modal-box">
+            <button class="modal-close" onclick="hideModal('impostor-modal', event)">✕</button>
+            <p class="modal-text">Ты кого наебать пытаешься? 🤨</p>
+        </div>
+    </div>
+
+    <!-- ===== МОДАЛКА ВВОДА НИКА ===== -->
+    <div id="nick-modal" class="modal-overlay hidden">
+        <div class="modal-box nick-box">
+            <h3 class="nick-title">КАК ТЕБЯ ЗВАТЬ?</h3>
+            <input type="text" id="nick-input" class="nick-input" placeholder="Введи ник..." maxlength="16" autocomplete="off">
+            <div id="nick-welcome" class="nick-welcome hidden"></div>
+
+            <!-- Блок проверки разработчика -->
+            <div id="dev-check" class="dev-check hidden">
+                <p class="dev-check-text">Это никнейм разработчика. Пруфани, что это ты.</p>
+                <input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Пароль..." maxlength="32" autocomplete="off">
+            </div>
+
+            <button id="btn-nick-go" class="btn-neon nick-go-btn">ВПЕРЁД! 🚀</button>
+        </div>
+    </div>
+
+    <!-- ===== МОДАЛКА РЕКОРДЫ ===== -->
+    <div id="records-modal" class="modal-overlay hidden" onclick="hideModal('records-modal', event)">
+        <div class="modal-box records-box">
+            <button class="modal-close" onclick="hideModal('records-modal', event)">✕</button>
+            <h3 class="records-title">🏆 ТАБЛИЦА РЕКОРДОВ</h3>
+            <div id="records-list" class="records-list">
+                <p class="no-records">Пока никто не играл. Будь первым!</p>
+            </div>
         </div>
     </div>
 
@@ -82,10 +120,12 @@
         <div class="gameover-content">
             <h2 class="gameover-title">ПОЗОРИЩЕ, СУКА!</h2>
             <p class="gameover-subtitle">Тебя Галюха ёбнула! 💀</p>
+            <p id="gameover-nick" class="gameover-nick"></p>
             <p class="final-score">Набрано очков: <span id="final-score">0</span></p>
             <p class="final-wave">Дожил до волны: <span id="final-wave">1</span></p>
+            <p id="new-record" class="new-record hidden">🎉 НОВЫЙ РЕКОРД! 🎉</p>
             <button id="btn-restart" class="btn-neon">🔄 ПОПРОБУЙ ЕЩЁ, ЧЁРТ</button>
-            <button id="btn-menu" class="btn-neon btn-secondary">🏠 В ПИЗДУ</button>
+            <button id="btn-menu" class="btn-neon btn-secondary">🏠 В МЕНЮ</button>
         </div>
     </div>
 
@@ -100,13 +140,16 @@
             document.getElementById('multi-modal').classList.remove('hidden');
         }
 
-        function hideMultiModal(e) {
+        function hideModal(id, e) {
             if (e.target.classList.contains('modal-overlay') || e.target.classList.contains('modal-close')) {
-                document.getElementById('multi-modal').classList.add('hidden');
+                document.getElementById(id).classList.add('hidden');
             }
+        }
+
+        function showRecords() {
+            document.getElementById('records-modal').classList.remove('hidden');
+            if (window.renderRecords) window.renderRecords();
         }
     </script>
 </body>
 </html>
-
-
