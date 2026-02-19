@@ -22,6 +22,11 @@
             </h1>
             <div class="menu-buttons">
                 <button id="btn-play" class="btn-neon">🚀 ИГРАТЬ</button>
+                <br>
+                <button id="btn-multi" class="btn-disabled" onclick="showMultiModal()">
+                    🌐 Мультиплеер
+                    <span class="btn-sub">(в стадии разработки)</span>
+                </button>
             </div>
 
             <!-- ===== FAQ СЕКЦИЯ ===== -->
@@ -53,6 +58,14 @@
         </div>
     </div>
 
+    <!-- ===== МОДАЛКА МУЛЬТИПЛЕЕР ===== -->
+    <div id="multi-modal" class="modal-overlay hidden" onclick="hideMultiModal(event)">
+        <div class="modal-box">
+            <button class="modal-close" onclick="hideMultiModal(event)">✕</button>
+            <p class="modal-text">Ты чё, еблан? Мы же сказали, что режим в стадии разработки 🤡</p>
+        </div>
+    </div>
+
     <!-- ===== ИГРОВОЙ ЭКРАН ===== -->
     <div id="game-screen" class="hidden">
         <canvas id="gameCanvas"></canvas>
@@ -72,7 +85,7 @@
             <p class="final-score">Набрано очков: <span id="final-score">0</span></p>
             <p class="final-wave">Дожил до волны: <span id="final-wave">1</span></p>
             <button id="btn-restart" class="btn-neon">🔄 ПОПРОБУЙ ЕЩЁ, ЧЁРТ</button>
-            <button id="btn-menu" class="btn-neon btn-secondary">🏠 В ПИЗДУ</button>
+            <button id="btn-menu" class="btn-neon btn-secondary">🏠 В МЕНЮ</button>
         </div>
     </div>
 
@@ -81,6 +94,16 @@
         function toggleFaq(el) {
             const item = el.parentElement;
             item.classList.toggle('open');
+        }
+
+        function showMultiModal() {
+            document.getElementById('multi-modal').classList.remove('hidden');
+        }
+
+        function hideMultiModal(e) {
+            if (e.target.classList.contains('modal-overlay') || e.target.classList.contains('modal-close')) {
+                document.getElementById('multi-modal').classList.add('hidden');
+            }
         }
     </script>
 </body>
