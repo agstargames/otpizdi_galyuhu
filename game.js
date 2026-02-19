@@ -390,6 +390,11 @@
     let bullets=[], enemies=[], particles=[], floatTexts=[], stars=[];
     let toSpawn, spawnTimer, spawnInterval, waveState, wavePauseTimer, bossAlive;
     let keys={}, pointerX=null, touchActive=false, firing=false, fireTimer=0;
+    let hearts = [];
+    let heartTimer = 0;
+    const HEART_INTERVAL = 18000; // каждые 18 секунд шанс спавна
+    const HEART_CHANCE = 0.6; // 60% шанс появления
+    const MAX_LIVES = 5; // максимум хп
     let invincible, invTimer, shakeX, shakeY, shakeAmt, shakeDur;
 
     function resize() { W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; if(player&&player.y) player.y=H-100; }
@@ -550,3 +555,4 @@
     canvas.addEventListener('touchend',e=>{e.preventDefault();if(e.touches.length>0)pointerX=e.touches[0].clientX;else{pointerX=null;touchActive=false;firing=false;}},{passive:false});
 
 })();
+
