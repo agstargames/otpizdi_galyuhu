@@ -47,7 +47,7 @@
     const DEV_NICKS = ['miralys', 'vikxii', 'dr.hentai'];
 
     // Пароль Miralys (ЗАМЕНИ НА СВОЙ):
-    const MIRALYS_PASSWORD = 'CHANGE_ME';
+    const MIRALYS_PASSWORD = 'шайлили<3';
 
     let currentNick = '';
 
@@ -1144,3 +1144,4 @@
     }, { passive: false });
 
 })();
+
