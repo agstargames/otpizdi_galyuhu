@@ -478,3 +478,4 @@
     canvas.addEventListener('touchend', e => { e.preventDefault(); if (e.touches.length > 0) pointerX = e.touches.clientX; else { pointerX = null; touchActive = false; firing = false; } }, { passive: false });
 
 })();
+
