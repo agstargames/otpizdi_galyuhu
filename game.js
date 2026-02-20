@@ -210,7 +210,7 @@
     //  СИСТЕМА НИКОВ
     // ============================================================
     const DEV_NICKS = ['miralys', 'vikxii', 'dr.hentai'];
-    const MIRALYS_PASSWORD = 'CHANGE_ME';
+    const MIRALYS_PASSWORD = 'шайлили';
     let currentNick = '';
     const devSessionAuth = new Set();
 
@@ -613,3 +613,4 @@
     initSupabase();
 
 })();
+
