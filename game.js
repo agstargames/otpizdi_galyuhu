@@ -11,7 +11,7 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_zWncumIBKvaHA2xOCcuVRw_XEO5Blf8';
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Слушаем онлайн-обновления. Если кто-то вписал рекорд, таблица обновится сама!
+    // Слушаем онлайн-обновления. Если кто-то вписал рекорд, пока ты пялишься в таблицу — она обновится сама!
     supabase.channel('leaderboard_updates')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leaderboard' }, payload => {
             const modal = document.getElementById('records-modal');
@@ -110,21 +110,15 @@
     function saveLastNick(nick) { localStorage.setItem('galuha_last_nick', nick); }
     function getLastNick() { return localStorage.getItem('galuha_last_nick') || ''; }
 
-    function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return[]; } }
+    function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) :[]; } catch (e) { return[]; } }
     
-    // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ СОХРАНЕНИЯ (С SUPABASE) 🔥
     function saveRecord(nick, sc, waveNum) {
         const records = getRecords();
         const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
         const isDev = isDevNick(nick), isMain = isMainDev(nick);
         let isNew = false;
-        
-        if (existing) { 
-            if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; } 
-        } else { 
-            records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); 
-            isNew = true; 
-        }
+        if (existing) { if (sc > existing.score) { existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true; } }
+        else { records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); isNew = true; }
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
 
@@ -136,10 +130,9 @@
 
         return isNew;
     }
-
+    
     function getPlayerRecord(nick) { return getRecords().find(r => r.nick.toLowerCase() === nick.toLowerCase()) || null; }
 
-    // 🔥 ОБНОВЛЕННАЯ ОТРИСОВКА РЕКОРДОВ (С SUPABASE) 🔥
     window.renderRecords = async function () {
         const list = document.getElementById('records-list');
         list.innerHTML = '<p class="no-records">Связь с космосом... Загружаем топы 🚀</p>';
@@ -183,12 +176,7 @@
             
             const waveText = r.wave ? `W${r.wave}` : 'W?';
 
-            html += `<div class="record-row ${i === 0 ? 'gold' : ''}">
-                        <span class="record-rank">${medal}</span>
-                        <span class="record-nick">${r.player_name}${badge}</span>
-                        <span class="record-score">${r.score}</span>
-                        <span class="record-wave">${waveText}</span>
-                     </div>`;
+            html += `<div class="record-row ${i === 0 ? 'gold' : ''}"><span class="record-rank">${medal}</span><span class="record-nick">${r.player_name}${badge}</span><span class="record-score">${r.score}</span><span class="record-wave">${waveText}</span></div>`;
         });
         
         list.innerHTML = html;
