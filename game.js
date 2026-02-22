@@ -34,21 +34,20 @@
     // ============================================================
     const SUPABASE_URL = 'https://cdqffguutlbrocghbovs.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkcWZmZ3V1dGxicm9jZ2hib3ZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0OTE2NDIsImV4cCI6MjA4NzA2NzY0Mn0.EQjgGIyeYEM94TKC_CiEmYCeynzqzNhvZLhjxcbAYn4';
-    let sb = null; // supabase client
+    let sb = null;
 
     function initSupabase() {
         try {
             if (window.supabase && window.supabase.createClient) {
                 sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 console.log('✅ Supabase подключён');
-                syncFromDB(); // фоновая синхронизация при загрузке
+                syncFromDB();
             } else {
                 console.warn('⚠ supabase-js не найден, работаем только с localStorage');
             }
         } catch (e) { console.warn('Supabase init error:', e); }
     }
 
-    // ★ Синхронизация: DB → localStorage (при загрузке страницы)
     async function syncFromDB() {
         if (!sb) return;
         try {
@@ -62,7 +61,6 @@
             const localRecords = getRecords();
             const merged = new Map();
 
-            // Сначала кладём локальные
             for (const r of localRecords) {
                 merged.set(r.nick.toLowerCase(), {
                     nick: r.nick, score: r.score, wave: r.wave,
@@ -70,7 +68,6 @@
                 });
             }
 
-            // Мержим с DB (побеждает тот, у кого score выше)
             for (const r of data) {
                 const key = r.nick.toLowerCase();
                 const local = merged.get(key);
@@ -82,12 +79,10 @@
                 }
             }
 
-            // Сохраняем мерж в localStorage
             const records = Array.from(merged.values());
             records.sort((a, b) => b.score - a.score);
             localStorage.setItem('galuha_records', JSON.stringify(records));
 
-            // Пушим в DB то, чего там нет или что лучше
             for (const r of localRecords) {
                 const dbRec = data.find(d => d.nick.toLowerCase() === r.nick.toLowerCase());
                 if (!dbRec) {
@@ -108,14 +103,12 @@
         } catch (e) { console.warn('Supabase sync error:', e); }
     }
 
-    // ★ Пуш одного рекорда в DB (вызывается после saveRecord)
     async function pushRecordToDB(nick, sc, waveNum) {
         if (!sb) return;
         try {
             const isDev = isDevNick(nick);
             const isMain = isMainDev(nick);
 
-            // Ищем существующий (без учёта регистра)
             const { data: existing, error: fetchErr } = await sb
                 .from('records')
                 .select('*')
@@ -142,7 +135,6 @@
         } catch (e) { console.warn('Supabase pushRecord error:', e); }
     }
 
-    // ★ Получить таблицу лидеров из DB (для renderRecords)
     async function fetchLeaderboard() {
         if (!sb) return null;
         try {
@@ -161,9 +153,8 @@
         }
     }
 
-    // ======= КАРТИНКИ С ПРЕДЗАГРУЗКОЙ =======
+    // ======= КАРТИНКИ =======
     let imagesLoaded = false;
-
     function loadImg(src) {
         return new Promise(resolve => {
             const img = new Image();
@@ -232,7 +223,6 @@
 
     function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return []; } }
 
-    // ★ SUPABASE — saveRecord теперь также пушит в DB
     function saveRecord(nick, sc, waveNum) {
         const records = getRecords();
         const existing = records.find(r => r.nick.toLowerCase() === nick.toLowerCase());
@@ -251,16 +241,12 @@
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
 
-        // ★ SUPABASE — фоновый пуш в базу
         pushRecordToDB(nick, sc, waveNum);
-
         return isNew;
     }
 
     function getPlayerRecord(nick) { return getRecords().find(r => r.nick.toLowerCase() === nick.toLowerCase()) || null; }
 
-    // ★ SUPABASE — renderRecords: сначала localStorage (мгновенно), потом DB
-    // Вспомогательная функция отрисовки списка
     function renderRecordsList(records, list) {
         if (records.length === 0) {
             list.innerHTML = '<p class="no-records">Пока никто не играл. Будь первым!</p>';
@@ -286,15 +272,10 @@
 
     window.renderRecords = function () {
         const list = document.getElementById('records-list');
-
-        // Мгновенно показываем из localStorage
         renderRecordsList(getRecords(), list);
-
-        // ★ SUPABASE — затем подтягиваем из DB и обновляем
         fetchLeaderboard().then(dbRecords => {
             if (dbRecords && dbRecords.length > 0) {
                 renderRecordsList(dbRecords, list);
-                // Обновляем кеш
                 localStorage.setItem('galuha_records', JSON.stringify(dbRecords));
             }
         });
@@ -418,13 +399,23 @@
 
     // ======= КОНФИГ =======
     const CFG = { 
-        playerSpeed: 7, bulletSpeed: 12, fireRate: 140, 
-        enemyBaseHp: 1, enemyHpGrow: 0.10, /* Галюхи жиреют чуть медленнее */
-        enemySpeed: 1.0, enemySpeedGrow: 0.05, /* Скорость растет не так резко */
-        enemyCount: 4, bossEvery: 5, bossHp: 15, bossHpGrow: 2, 
-        lives: 3, invincTime: 2000, wavePause: 2500, spawnDelay: 1200,
-        maxEnemyHp: 4,     // НОВОЕ: Обычная голова не может иметь больше 4 HP
-        minSpawnDelay: 600 // НОВОЕ: Головы не будут спавниться быстрее чем раз в 0.6 сек
+        playerSpeed: 8.5,       // ФИКС: Увеличена скорость игрока, чтобы ощущалось динамично
+        bulletSpeed: 15,        // ФИКС: Увеличена скорость пуль
+        fireRate: 130,          // ФИКС: Чуть-чуть ускорили темп стрельбы
+        enemyBaseHp: 1, 
+        enemyHpGrow: 0.15, 
+        enemySpeed: 1.6,        // ФИКС: Увеличен стартовый темп обычных галюх
+        enemySpeedGrow: 0.05, 
+        enemyCount: 4, 
+        bossEvery: 5, 
+        bossHp: 15, 
+        bossHpGrow: 2.5, 
+        lives: 3, 
+        invincTime: 2000, 
+        wavePause: 2500, 
+        spawnDelay: 1000,
+        maxEnemyHp: 5,          // Лимит ХП обычных галюх (раньше был 4, увеличил до 5 для баланса)
+        minSpawnDelay: 450      // ФИКС: Ограничение - спавн не может быть быстрее чем раз в 0.45с (раньше они вылетали сплошной стеной)
     };
 
     // ======= СОСТОЯНИЕ =======
@@ -459,7 +450,7 @@
         const speed = CFG.playerSpeed * dtScale;
         if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
         if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
-        if (pointerX !== null) player.x += (pointerX - player.x) * (0.14 * dtScale);
+        if (pointerX !== null) player.x += (pointerX - player.x) * (0.16 * dtScale); // ФИКС: мышь теперь тоже чуть быстрее двигает
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
     }
@@ -491,14 +482,14 @@
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
         
-        // Считаем скорость с ограничением (не быстрее 3.5 для обычных и 2.5 для босса)
+        // ФИКС: Ставим жесткий кап (предел) на скорость спавна
         const calcSpd = isBoss ? 0.6 + wave * 0.05 : CFG.enemySpeed + wave * CFG.enemySpeedGrow + Math.random() * 0.8;
-        const spd = Math.min(calcSpd, isBoss ? 2.5 : 3.5);
+        const spd = Math.min(calcSpd, isBoss ? 2.5 : 4.0); // Обычные не быстрее 4.0 (адекватно), босс не быстрее 2.5
         
-        // Считаем HP с ограничением (maxEnemyHp для обычных)
+        // ФИКС: У босса тоже теперь есть предел ХП, чтобы не нужно было стрелять в него по 10 минут
         let hp;
         if (isBoss) {
-            hp = CFG.bossHp + wave * CFG.bossHpGrow;
+            hp = Math.min(150, CFG.bossHp + wave * CFG.bossHpGrow);
         } else {
             hp = Math.ceil(CFG.enemyBaseHp + wave * CFG.enemyHpGrow);
             hp = Math.min(hp, CFG.maxEnemyHp); // Упираемся в лимит
@@ -516,6 +507,7 @@
     }
 
     function isOnScreen(e) { return (e.y - e.h / 2) >= 0; }
+    
     function updateEnemies(dt) {
         const dtScale = dt / 16.666;
         for (let i = enemies.length - 1; i >= 0; i--) {
@@ -535,25 +527,33 @@
                     e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); 
                     if (e.flash > 0) e.flash -= dt; continue; 
                 }
-                const bsx = (2.5 + wave * 0.3) * dtScale; 
+                
+                // ФИКС: Ограничение скорости рывков босса влево/вправо (раньше он мог летать со скоростью света)
+                const bsx = Math.min(5.5, 2.5 + wave * 0.15) * dtScale; 
                 e.x += e.bossDir * bsx;
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; } 
                 if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
                 
                 if (!e.bossDiving && !e.bossReturning) { 
                     e.bossDiveTimer += dt; 
-                    if (e.bossDiveTimer > Math.max(1800, 4000 - wave * 200)) { e.bossDiving = true; e.bossDiveTimer = 0; } 
+                    // ФИКС: Босс не будет нырять быстрее, чем 1 раз в 1.2 секунды
+                    const diveThreshold = Math.max(1200, 4000 - wave * 150);
+                    if (e.bossDiveTimer > diveThreshold) { e.bossDiving = true; e.bossDiveTimer = 0; } 
                     const ty = H * 0.15 + e.h / 2; 
                     if (e.y < ty - 3) e.y += 1 * dtScale; else if (e.y > ty + 3) e.y -= 1 * dtScale; 
                     e.y += Math.sin(Date.now() / 800) * 0.4 * dtScale; 
                 }
                 if (e.bossDiving) { 
-                    e.y += (5 + wave * 0.4) * dtScale; 
+                    // ФИКС: Ограничение скорости падения (чтобы у игрока был шанс увернуться)
+                    const diveSpeed = Math.min(9.0, 5.0 + wave * 0.25) * dtScale;
+                    e.y += diveSpeed; 
                     if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } 
                     if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } 
                 }
                 if (e.bossReturning) { 
-                    e.y -= 2.5 * dtScale; 
+                    // ФИКС: Лимит скорости возврата наверх
+                    const retSpd = Math.min(4.0, 2.5 + wave * 0.1) * dtScale;
+                    e.y -= retSpd; 
                     if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; } 
                 }
                 e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x));
@@ -641,7 +641,7 @@
     function gameOver() {
         running = false; cancelAnimationFrame(animId); stopMusic();
         setTimeout(() => playGameoverSound(), 100);
-        const isNew = saveRecord(currentNick, score, wave); // ★ saveRecord теперь сам пушит в DB
+        const isNew = saveRecord(currentNick, score, wave); 
         elFinalScore.textContent = score;
         elFinalWave.textContent = wave;
         elGameoverNick.textContent = currentNick;
@@ -663,10 +663,10 @@
             addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); 
             playSound('bossWarn'); 
         } else { 
-            // Количество врагов растет чуть плавнее (1.5 за волну вместо 2)
-            toSpawn = CFG.enemyCount + Math.floor(wave * 1.5); 
-            // Задержка спавна упирается в наш новый безопасный лимит (minSpawnDelay)
-            spawnInterval = Math.max(CFG.minSpawnDelay, CFG.spawnDelay - wave * 30); 
+            // ФИКС: Чуть замедлил прирост количества врагов на волну (было 1.5, стало 1.2) - чтобы на 20+ волнах не было тупо стены
+            toSpawn = CFG.enemyCount + Math.floor(wave * 1.2); 
+            // ФИКС: Задержка спавна упирается в лимит CFG.minSpawnDelay (0.45 сек)
+            spawnInterval = Math.max(CFG.minSpawnDelay, CFG.spawnDelay - wave * 25); 
             spawnTimer = 0; 
             addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); 
             playSynthWave(); 
@@ -712,9 +712,9 @@
         fireTimer = 0; firing = false; pointerX = null; touchActive = false;
         initStars(); initPlayer(); showScreen(gameScreen);
 
-        requestAnimationFrame(() => {
+        requestAnimationFrame((time) => {
             resize();
-            running = true; lastTime = performance.now();
+            running = true; lastTime = time; // ФИКС: Используем time от requestAnimationFrame для идеального старта без рывка
             animId = requestAnimationFrame(loop); startWave();
         });
     }
