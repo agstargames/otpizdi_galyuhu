@@ -42,8 +42,6 @@
                 sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 console.log('✅ Supabase подключён');
                 syncFromDB();
-            } else {
-                console.warn('⚠ supabase-js не найден, работаем только с localStorage');
             }
         } catch (e) { console.warn('Supabase init error:', e); }
     }
@@ -59,20 +57,14 @@
             const merged = new Map();
 
             for (const r of localRecords) {
-                merged.set(r.nick.toLowerCase(), {
-                    nick: r.nick, score: r.score, wave: r.wave,
-                    date: r.date, isDev: r.isDev || false, isMain: r.isMain || false
-                });
+                merged.set(r.nick.toLowerCase(), { nick: r.nick, score: r.score, wave: r.wave, date: r.date, isDev: r.isDev || false, isMain: r.isMain || false });
             }
 
             for (const r of data) {
                 const key = r.nick.toLowerCase();
                 const local = merged.get(key);
                 if (!local || r.score > local.score) {
-                    merged.set(key, {
-                        nick: r.nick, score: r.score, wave: r.wave,
-                        date: r.created_at, isDev: r.is_dev || false, isMain: r.is_main || false
-                    });
+                    merged.set(key, { nick: r.nick, score: r.score, wave: r.wave, date: r.created_at, isDev: r.is_dev || false, isMain: r.is_main || false });
                 }
             }
 
@@ -83,15 +75,9 @@
             for (const r of localRecords) {
                 const dbRec = data.find(d => d.nick.toLowerCase() === r.nick.toLowerCase());
                 if (!dbRec) {
-                    await sb.from('records').insert({
-                        nick: r.nick, score: r.score, wave: r.wave || 1, created_at: r.date || Date.now(),
-                        is_dev: r.isDev || false, is_main: r.isMain || false
-                    }).catch(() => {});
+                    await sb.from('records').insert({ nick: r.nick, score: r.score, wave: r.wave || 1, created_at: r.date || Date.now(), is_dev: r.isDev || false, is_main: r.isMain || false }).catch(() => {});
                 } else if (r.score > dbRec.score) {
-                    await sb.from('records').update({
-                        score: r.score, wave: r.wave || 1, created_at: r.date || Date.now(),
-                        is_dev: r.isDev || false, is_main: r.isMain || false
-                    }).eq('id', dbRec.id).catch(() => {});
+                    await sb.from('records').update({ score: r.score, wave: r.wave || 1, created_at: r.date || Date.now(), is_dev: r.isDev || false, is_main: r.isMain || false }).eq('id', dbRec.id).catch(() => {});
                 }
             }
         } catch (e) { console.warn('Supabase sync error:', e); }
@@ -100,21 +86,16 @@
     async function pushRecordToDB(nick, sc, waveNum) {
         if (!sb) return;
         try {
-            const isDev = isDevNick(nick);
-            const isMain = isMainDev(nick);
+            const isDev = isDevNick(nick), isMain = isMainDev(nick);
             const { data: existing, error: fetchErr } = await sb.from('records').select('*').ilike('nick', nick).maybeSingle();
             if (fetchErr) throw fetchErr;
 
             if (existing) {
                 if (sc > existing.score) {
-                    await sb.from('records').update({
-                        score: sc, wave: waveNum, created_at: Date.now(), is_dev: isDev, is_main: isMain
-                    }).eq('id', existing.id);
+                    await sb.from('records').update({ score: sc, wave: waveNum, created_at: Date.now(), is_dev: isDev, is_main: isMain }).eq('id', existing.id);
                 }
             } else {
-                await sb.from('records').insert({
-                    nick, score: sc, wave: waveNum, created_at: Date.now(), is_dev: isDev, is_main: isMain
-                });
+                await sb.from('records').insert({ nick, score: sc, wave: waveNum, created_at: Date.now(), is_dev: isDev, is_main: isMain });
             }
         } catch (e) { console.warn('Supabase pushRecord error:', e); }
     }
@@ -129,11 +110,9 @@
     }
 
     // ============================================================
-    //  ★ ПРЕЛОАДЕР КАРТИНОК (Чтобы не было оранжевых квадратов)
+    //  ★ ПРЕЛОАДЕР КАРТИНОК
     // ============================================================
     let imagesLoaded = false;
-    
-    // Блокируем кнопку ИГРАТЬ до загрузки картинок
     btnPlay.innerHTML = '⏳ ЗАГРУЗКА...';
     btnPlay.style.pointerEvents = 'none';
     btnPlay.style.opacity = '0.5';
@@ -142,7 +121,7 @@
         return new Promise(resolve => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = () => resolve(img); // даже если ошибка, пропускаем, чтобы игра не зависла
+            img.onerror = () => resolve(img);
             img.src = src;
         });
     }
@@ -151,18 +130,11 @@
     const BOSS_IMG = new Image();
 
     Promise.all([
-        loadImg('shit1.png'),
-        loadImg('shit2.png'),
-        loadImg('shit3.png'),
-        loadImg('shit4.png'),
-        loadImg('shit_final.png')
+        loadImg('shit1.png'), loadImg('shit2.png'), loadImg('shit3.png'), loadImg('shit4.png'), loadImg('shit_final.png')
     ]).then(imgs => {
         ENEMY_IMGS.push(imgs[0], imgs[1], imgs[2], imgs[3]);
-        BOSS_IMG.src = imgs[4].src;
-        BOSS_IMG.onload = () => {};
+        BOSS_IMG.src = imgs[4].src; BOSS_IMG.onload = () => {};
         Object.assign(BOSS_IMG, { width: imgs[4].width, height: imgs[4].height });
-        
-        // Разблокируем кнопку ИГРАТЬ
         imagesLoaded = true;
         btnPlay.innerHTML = '🚀 ИГРАТЬ';
         btnPlay.style.pointerEvents = 'auto';
@@ -202,7 +174,6 @@
     function markDevSession(nick) { devSessionAuth.add(nick.toLowerCase().trim()); }
     function saveLastNick(nick) { localStorage.setItem('galuha_last_nick', nick); }
     function getLastNick() { return localStorage.getItem('galuha_last_nick') || ''; }
-
     function getRecords() { try { const d = localStorage.getItem('galuha_records'); return d ? JSON.parse(d) : []; } catch (e) { return []; } }
 
     function saveRecord(nick, sc, waveNum) {
@@ -212,13 +183,10 @@
         let isNew = false;
         if (existing) {
             if (sc > existing.score) {
-                existing.score = sc; existing.wave = waveNum;
-                existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain;
-                isNew = true;
+                existing.score = sc; existing.wave = waveNum; existing.date = Date.now(); existing.isDev = isDev; existing.isMain = isMain; isNew = true;
             }
         } else {
-            records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain });
-            isNew = true;
+            records.push({ nick, score: sc, wave: waveNum, date: Date.now(), isDev, isMain }); isNew = true;
         }
         records.sort((a, b) => b.score - a.score);
         localStorage.setItem('galuha_records', JSON.stringify(records));
@@ -232,8 +200,7 @@
         if (records.length === 0) { list.innerHTML = '<p class="no-records">Пока никто не играл. Будь первым!</p>'; return; }
         const medals = ['👑', '🥈', '🥉']; let html = '';
         records.forEach((r, i) => {
-            const medal = i < 3 ? medals[i] : (i + 1);
-            let badge = '';
+            const medal = i < 3 ? medals[i] : (i + 1); let badge = '';
             if (r.isMain || r.nick.toLowerCase() === 'miralys') badge = '<span class="dev-badge main-dev">MAIN DEV</span>';
             else if (r.isDev) badge = '<span class="dev-badge">DEV</span>';
             html += `<div class="record-row ${i === 0 ? 'gold' : ''}"><span class="record-rank">${medal}</span><span class="record-nick">${r.nick}${badge}</span><span class="record-score">${r.score}</span><span class="record-wave">W${r.wave}</span></div>`;
@@ -244,9 +211,7 @@
     window.renderRecords = function () {
         const list = document.getElementById('records-list');
         renderRecordsList(getRecords(), list);
-        fetchLeaderboard().then(dbRecords => {
-            if (dbRecords && dbRecords.length > 0) { renderRecordsList(dbRecords, list); localStorage.setItem('galuha_records', JSON.stringify(dbRecords)); }
-        });
+        fetchLeaderboard().then(dbRecords => { if (dbRecords && dbRecords.length > 0) { renderRecordsList(dbRecords, list); localStorage.setItem('galuha_records', JSON.stringify(dbRecords)); } });
     };
 
     function getPassInput() { return document.getElementById('dev-password'); }
@@ -295,16 +260,14 @@
         }
         currentNick = nick; saveLastNick(nick); hideNickModal();
         
-        // ★ АГРЕССИВНЫЙ АНЛОК ЗВУКА И ЗАПУСК МУЗЫКИ ★
-        unlockAudio(true);
-        
+        unlockAudio(); // Снимаем блокировку звука
         startGameDirect();
     });
 
     nickInput.addEventListener('keydown', e => { if (e.key === 'Enter') { const pi = getPassInput(); if (pi && !pi.value) pi.focus(); else btnNickGo.click(); } });
 
     // ============================================================
-    //  ЗВУКОВОЙ ДВИЖОК
+    //  ★ ЗВУКОВОЙ ДВИЖОК С АНТИ-ЛАГ ПРОГРЕВОМ
     // ============================================================
     const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
     let audioCtx = null, audioUnlocked = false;
@@ -323,6 +286,18 @@
             Object.entries(SOUND_FILES).forEach(([key, url]) => {
                 fetch(url).then(r => r.arrayBuffer()).then(buf => audioCtx.decodeAudioData(buf)).then(decoded => { soundBuffers[key] = decoded; }).catch(()=>{});
             });
+        } catch (e) {}
+    }
+
+    // Функция прогрева: проигрывает пустой звук, чтобы браузер скомпилировал ноды заранее
+    function warmUpAudioEngine() {
+        if (!audioCtx || audioCtx.state === 'suspended') return;
+        try {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            g.gain.value = 0.001; // Почти нулевая громкость
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(0); o.stop(audioCtx.currentTime + 0.05);
         } catch (e) {}
     }
 
@@ -359,7 +334,6 @@
     function playSynthWave() {
         if (!audioCtx) return;
         try {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
             const o = audioCtx.createOscillator(), g = audioCtx.createGain(), n = audioCtx.currentTime;
             o.type = 'sine'; o.frequency.setValueAtTime(440, n); o.frequency.exponentialRampToValueAtTime(880, n + 0.2);
             g.gain.setValueAtTime(0.1, n); g.gain.linearRampToValueAtTime(0.1, n + 0.15); g.gain.exponentialRampToValueAtTime(0.001, n + 0.4);
@@ -369,7 +343,6 @@
     function playSynthWaveDone() {
         if (!audioCtx) return;
         try {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
             const n = audioCtx.currentTime;
             [523, 659, 784].forEach((f, i) => {
                 const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.12;
@@ -381,7 +354,6 @@
     function playSynthHeal() {
         if (!audioCtx) return;
         try {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
             const n = audioCtx.currentTime;
             [660, 880, 1100].forEach((f, i) => {
                 const o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = n + i * 0.1;
@@ -391,44 +363,37 @@
         } catch (e) {}
     }
 
-    // ★ ФУНКЦИЯ РАЗБЛОКИРОВКИ ЗВУКА (Вызывается по клику пользователя)
-    function unlockAudio(forcePlayMusic = false) {
+    function unlockAudio() {
         initAudio();
-        if (audioCtx && audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         
-        // Хакаем автоплей браузера: проигрываем пустой звук
         if (!audioUnlocked) {
             audioUnlocked = true;
+            warmUpAudioEngine(); // Прогреваем звук от лагов
+            
+            // Воспроизводим музыку и тут же ставим на паузу, чтобы "легализовать" её для браузера
             musicTrack.play().then(() => {
-                if (!forcePlayMusic) {
-                    musicTrack.pause();
-                    musicTrack.currentTime = 0;
-                }
-            }).catch(e => console.warn("Autoplay blocked:", e));
-        } else if (forcePlayMusic) {
-            musicTrack.currentTime = 0;
-            musicTrack.play().catch(e => console.warn("Music play blocked:", e));
+                musicTrack.pause();
+                musicTrack.currentTime = 0;
+            }).catch(()=>{});
         }
     }
 
-    // Слушаем клики по экрану для предварительного анлока
-    document.addEventListener('click', () => unlockAudio(false), { once: true });
-    document.addEventListener('touchstart', () => unlockAudio(false), { once: true });
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
 
     // ============================================================
-    //  ★ КОНФИГ + СИСТЕМА БАЛАНСА (НОВЫЕ СУМАСШЕДШИЕ НАСТРОЙКИ)
+    //  ★ КОНФИГ + БАЛАНС (ЗОЛОТАЯ СЕРЕДИНА)
     // ============================================================
     const CFG = {
-        playerSpeed:  12,       // БЫЛО 8 -> СТАЛО 12 (корабль летает гораздо быстрее)
-        bulletSpeed:  20,       // БЫЛО 14 -> СТАЛО 20 (пули летят почти моментально)
-        fireRate:     110,      // БЫЛО 130 -> СТАЛО 110 (строчит быстрее)
+        playerSpeed:  12,       // Корабль маневренный
+        bulletSpeed:  20,       // Пули летят быстро
+        fireRate:     110,      
         lives:        3,
         invincTime:   2000,
         wavePause:    2500,
         bossEvery:    5,
-        maxEnemyHp:   6         // Макс ХП обычного врага
+        maxEnemyHp:   4         // Макс ХП обычной Галюхи (снижено с 6, чтобы не были бетонными)
     };
 
     function smooth(startVal, endVal, currentWave, halfWave) {
@@ -464,7 +429,7 @@
         const speed = CFG.playerSpeed * s60;
         if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
         if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
-        if (pointerX !== null) player.x += (pointerX - player.x) * (0.2 * s60); // Более резкое следование за пальцем
+        if (pointerX !== null) player.x += (pointerX - player.x) * (0.2 * s60); 
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
     }
@@ -487,20 +452,19 @@
     function drawBullets() { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; for (const b of bullets) { ctx.globalAlpha = 1; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); ctx.globalAlpha = 0.3; ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); } ctx.globalAlpha = 1; ctx.restore(); }
 
     // ============================================================
-    //  ★ ВРАГИ — (УСИЛЕННЫЙ ЭКСТРИМ)
+    //  ★ ВРАГИ (Сбалансированные скорости)
     // ============================================================
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
 
-        // Скорость обычных: БЫЛО 1.5-3.2 -> СТАЛО 3.0-6.5
-        const spd = isBoss ? 0 : smooth(3.0, 6.5, wave, 25) + Math.random() * 1.0;
+        // Скорость обычных: БЫЛО 3.0-6.5 -> СТАЛО 2.0-5.0 (умеренно быстро)
+        const spd = isBoss ? 0 : smooth(2.0, 5.0, wave, 30) + Math.random() * 0.8;
 
         let hp;
         if (isBoss) {
-            // HP Босса: БЫЛО 18-60 -> СТАЛО 25-100 (чтобы не сбривался за секунду)
-            hp = Math.floor(smooth(25, 100, wave, 25));
+            hp = Math.floor(smooth(20, 80, wave, 25));
         } else {
-            hp = Math.min(CFG.maxEnemyHp, 1 + Math.floor(smooth(0, 5, wave, 12)));
+            hp = Math.min(CFG.maxEnemyHp, 1 + Math.floor(smooth(0, 4, wave, 15)));
         }
 
         const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
@@ -508,8 +472,8 @@
         enemies.push({
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
-            zigzag: !isBoss && Math.random() > 0.3, // Чаще виляют
-            zigAmp: (Math.random() - 0.5) * 6,      // Сильнее виляют
+            zigzag: !isBoss && Math.random() > 0.4, 
+            zigAmp: (Math.random() - 0.5) * 5,     
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0, bossDiving: false, bossReturning: false
@@ -534,20 +498,19 @@
                 if (e.y > H + e.h) { enemies.splice(i, 1); playerHit(); continue; }
             }
 
-            // ── ЖЕСТКИЙ БОСС ──
             if (e.boss) {
-                if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.5 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
+                if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
-                // Горизонтальная скорость: БЫЛО до 5.5 -> СТАЛО до 8.5
-                const bossHorizSpd = smooth(3.5, 8.5, wave, 25) * s60;
+                // Скорость босса по горизонтали: до 6.5
+                const bossHorizSpd = smooth(3.0, 6.5, wave, 30) * s60;
                 e.x += e.bossDir * bossHorizSpd;
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
                 if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
 
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
-                    // Интервал нырка: БЫЛО 4.5-2.2 сек -> СТАЛО 2.5-1.0 сек (ныряет в два раза чаще!)
-                    const diveInterval = smooth(2500, 1000, wave, 20);
+                    // Интервал нырка: от 3 до 1.5 сек (не спамит каждую секунду, дает подышать)
+                    const diveInterval = smooth(3000, 1500, wave, 25);
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
                     const ty = H * 0.15 + e.h / 2;
@@ -556,15 +519,15 @@
                 }
 
                 if (e.bossDiving) {
-                    // Скорость нырка: БЫЛО 5.5-9.0 -> СТАЛО 10.0-18.0 (Очень резкий выпад)
-                    const diveSpd = smooth(10.0, 18.0, wave, 25) * s60;
+                    // Скорость нырка: от 7.5 до 12.5 (быстро, но реально увернуться)
+                    const diveSpd = smooth(7.5, 12.5, wave, 30) * s60;
                     e.y += diveSpd;
-                    if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(10, 200); }
-                    if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(10, 200); }
+                    if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(8, 200); }
+                    if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(8, 200); }
                 }
 
                 if (e.bossReturning) {
-                    const retSpd = smooth(6.0, 10.0, wave, 25) * s60;
+                    const retSpd = smooth(5.0, 8.0, wave, 30) * s60;
                     e.y -= retSpd;
                     if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; }
                 }
@@ -579,11 +542,14 @@
             if (!e.boss && !isOnScreen(e)) continue; ctx.save();
             if (e.flash > 0) { ctx.shadowBlur = 25; ctx.shadowColor = '#fff'; }
             drawImgSafe(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
-            if (e.maxHp > 1 && e.hp > 0) {
+            
+            // ★ ИСПРАВЛЕНО: Теперь ХП рисуется всегда, даже если у врага 1 ХП
+            if (e.hp > 0) {
                 const bw = e.w * (e.boss ? 1.3 : 1), bh = e.boss ? 8 : 5, bx = e.x - bw / 2, by = e.y - e.h / 2 - (e.boss ? 20 : 12), r = e.hp / e.maxHp;
                 ctx.fillStyle = '#222'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = r > 0.5 ? '#0f0' : r > 0.25 ? '#ff0' : '#f00';
                 ctx.fillRect(bx, by, bw * r, bh); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
             }
+            
             if (e.boss && e.hp > 0) { ctx.fillStyle = '#ff0'; ctx.font = 'bold 14px Orbitron'; ctx.textAlign = 'center'; ctx.shadowBlur = 8; ctx.shadowColor = '#ff0'; ctx.fillText('ГАЛЮХА-БОСС', e.x, e.y - e.h / 2 - 28); }
             ctx.restore();
         }
@@ -655,12 +621,11 @@
         setTimeout(() => showScreen(overScreen), 600);
     }
 
-    // ===== ТРЯСКА =====
     function doShake(a, d) { shakeAmt = a; shakeDur = d; }
     function updateShake(dt) { if (shakeDur > 0) { shakeDur -= dt; shakeX = (Math.random() - 0.5) * shakeAmt; shakeY = (Math.random() - 0.5) * shakeAmt; if (shakeDur <= 0) shakeX = shakeY = shakeAmt = 0; } }
 
     // ============================================================
-    //  ★ ВОЛНЫ (Больше мяса!)
+    //  ★ ВОЛНЫ (Более честный спавн)
     // ============================================================
     function startWave() {
         waveState = 'active';
@@ -669,11 +634,10 @@
         if (isBoss) {
             toSpawn = 0; spawnEnemy(true); bossAlive = true; addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn');
         } else {
-            // Кол-во врагов: БЫЛО 5-22 -> СТАЛО 8-45 (настоящий рой)
-            toSpawn = Math.floor(smooth(8, 45, wave, 20));
-
-            // Интервал: БЫЛО 1100-450мс -> СТАЛО 800-250мс
-            spawnInterval = smooth(800, 250, wave, 15);
+            // Кол-во врагов: от 6 до 35
+            toSpawn = Math.floor(smooth(6, 35, wave, 25));
+            // Интервал: от 900мс до 350мс
+            spawnInterval = smooth(900, 350, wave, 25);
 
             spawnTimer = 0; addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); playSynthWave();
         }
@@ -702,6 +666,12 @@
 
     // ===== СТАРТ =====
     function startGameDirect() {
+        if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        
+        // ★ ПРИНУДИТЕЛЬНЫЙ ЗАПУСК МУЗЫКИ ДЛЯ РЕСТАРТА ★
+        musicTrack.currentTime = 0;
+        musicTrack.play().catch(()=>{});
+
         resize();
         score = 0; lives = CFG.lives; wave = 1;
         elScore.textContent = '0'; elLives.textContent = lives; elWave.textContent = '1';
@@ -713,10 +683,9 @@
         requestAnimationFrame(() => { resize(); running = true; lastTime = performance.now(); animId = requestAnimationFrame(loop); startWave(); });
     }
 
-    function launchGame() { unlockAudio(true); startGameDirect(); }
-
+    // При клике на кнопки Играть / Рестарт мы сразу анлочим аудио
     btnPlay.addEventListener('click', () => { showNickModal(); });
-    btnRestart.addEventListener('click', () => { launchGame(); });
+    btnRestart.addEventListener('click', () => { unlockAudio(); startGameDirect(); });
     btnMenu.addEventListener('click', () => { running = false; cancelAnimationFrame(animId); musicTrack.pause(); showScreen(menuScreen); });
 
     // ===== УПРАВЛЕНИЕ =====
@@ -730,7 +699,6 @@
     canvas.addEventListener('touchmove', e => { e.preventDefault(); if (!running) return; if (e.touches.length) pointerX = e.touches[0].clientX; }, { passive: false });
     canvas.addEventListener('touchend', e => { e.preventDefault(); if (e.touches.length > 0) pointerX = e.touches[0].clientX; else { pointerX = null; touchActive = false; firing = false; } }, { passive: false });
 
-    // ★ SUPABASE — инициализация при загрузке
     initSupabase();
 
 })();
