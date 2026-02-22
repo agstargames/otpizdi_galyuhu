@@ -417,7 +417,15 @@
     document.addEventListener('touchend', unlockAudio);
 
     // ======= КОНФИГ =======
-    const CFG = { playerSpeed: 7, bulletSpeed: 12, fireRate: 140, enemyBaseHp: 1, enemyHpGrow: 0.15, enemySpeed: 1.0, enemySpeedGrow: 0.08, enemyCount: 4, bossEvery: 5, bossHp: 15, bossHpGrow: 2, lives: 3, invincTime: 2000, wavePause: 2500, spawnDelay: 1200 };
+    const CFG = { 
+        playerSpeed: 7, bulletSpeed: 12, fireRate: 140, 
+        enemyBaseHp: 1, enemyHpGrow: 0.10, /* Галюхи жиреют чуть медленнее */
+        enemySpeed: 1.0, enemySpeedGrow: 0.05, /* Скорость растет не так резко */
+        enemyCount: 4, bossEvery: 5, bossHp: 15, bossHpGrow: 2, 
+        lives: 3, invincTime: 2000, wavePause: 2500, spawnDelay: 1200,
+        maxEnemyHp: 4,     // НОВОЕ: Обычная голова не может иметь больше 4 HP
+        minSpawnDelay: 600 // НОВОЕ: Головы не будут спавниться быстрее чем раз в 0.6 сек
+    };
 
     // ======= СОСТОЯНИЕ =======
     let W, H, score, lives, wave, running = false, animId, lastTime;
@@ -435,15 +443,23 @@
 
     // ===== ЗВЁЗДЫ =====
     function initStars() { stars = []; for (let i = 0; i < 130; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.8 + 0.3, speed: Math.random() * 2 + 0.5, alpha: Math.random() * 0.7 + 0.3 }); }
-    function updateStars() { for (const s of stars) { s.y += s.speed; if (s.y > H) { s.y = -2; s.x = Math.random() * W; } } }
+    function updateStars(dt) { 
+        const dtScale = dt / 16.666;
+        for (const s of stars) { 
+            s.y += s.speed * dtScale; 
+            if (s.y > H) { s.y = -2; s.x = Math.random() * W; } 
+        } 
+    }
     function drawStars() { for (const s of stars) { ctx.globalAlpha = s.alpha; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1; }
 
     // ===== ИГРОК =====
     function initPlayer() { player = { x: W / 2, y: H - 100, w: 40, h: 50 }; }
     function updatePlayer(dt) {
-        if (keys['ArrowLeft'] || keys['KeyA']) player.x -= CFG.playerSpeed;
-        if (keys['ArrowRight'] || keys['KeyD']) player.x += CFG.playerSpeed;
-        if (pointerX !== null) player.x += (pointerX - player.x) * 0.14;
+        const dtScale = dt / 16.666;
+        const speed = CFG.playerSpeed * dtScale;
+        if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
+        if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
+        if (pointerX !== null) player.x += (pointerX - player.x) * (0.14 * dtScale);
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
     }
@@ -461,34 +477,91 @@
     // ===== ПУЛИ =====
     function shoot() { bullets.push({ x: player.x, y: player.y - 28, w: 4, h: 14 }); playSynthShoot(); }
     function handleFiring(dt) { if (!firing) { fireTimer = 0; return; } fireTimer -= dt; if (fireTimer <= 0) { shoot(); fireTimer = CFG.fireRate; } }
-    function updateBullets() { for (let i = bullets.length - 1; i >= 0; i--) { bullets[i].y -= CFG.bulletSpeed; if (bullets[i].y < -20) bullets.splice(i, 1); } }
+    function updateBullets(dt) { 
+        const dtScale = dt / 16.666;
+        const speed = CFG.bulletSpeed * dtScale;
+        for (let i = bullets.length - 1; i >= 0; i--) { 
+            bullets[i].y -= speed; 
+            if (bullets[i].y < -20) bullets.splice(i, 1); 
+        } 
+    }
     function drawBullets() { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; for (const b of bullets) { ctx.globalAlpha = 1; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); ctx.globalAlpha = 0.3; ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); } ctx.globalAlpha = 1; ctx.restore(); }
 
     // ===== ВРАГИ =====
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
-        const spd = isBoss ? 0.6 + wave * 0.06 : CFG.enemySpeed + wave * CFG.enemySpeedGrow + Math.random() * 0.8;
-        const hp = isBoss ? CFG.bossHp + wave * CFG.bossHpGrow : Math.ceil(CFG.enemyBaseHp + wave * CFG.enemyHpGrow);
+        
+        // Считаем скорость с ограничением (не быстрее 3.5 для обычных и 2.5 для босса)
+        const calcSpd = isBoss ? 0.6 + wave * 0.05 : CFG.enemySpeed + wave * CFG.enemySpeedGrow + Math.random() * 0.8;
+        const spd = Math.min(calcSpd, isBoss ? 2.5 : 3.5);
+        
+        // Считаем HP с ограничением (maxEnemyHp для обычных)
+        let hp;
+        if (isBoss) {
+            hp = CFG.bossHp + wave * CFG.bossHpGrow;
+        } else {
+            hp = Math.ceil(CFG.enemyBaseHp + wave * CFG.enemyHpGrow);
+            hp = Math.min(hp, CFG.maxEnemyHp); // Упираемся в лимит
+        }
+        
         const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
-        enemies.push({ x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz, speed: spd, hp, maxHp: hp, img, boss: !!isBoss, zigzag: !isBoss && Math.random() > 0.4, zigAmp: (Math.random() - 0.5) * 4, angle: Math.random() * Math.PI * 2, flash: 0, bossDir: Math.random() > 0.5 ? 1 : -1, bossDiveTimer: 0, bossDiving: false, bossReturning: false });
+        
+        enemies.push({ 
+            x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, 
+            w: sz, h: sz, speed: spd, hp, maxHp: hp, img, boss: !!isBoss, 
+            zigzag: !isBoss && Math.random() > 0.4, zigAmp: (Math.random() - 0.5) * 4, 
+            angle: Math.random() * Math.PI * 2, flash: 0, 
+            bossDir: Math.random() > 0.5 ? 1 : -1, bossDiveTimer: 0, bossDiving: false, bossReturning: false 
+        });
     }
+
     function isOnScreen(e) { return (e.y - e.h / 2) >= 0; }
     function updateEnemies(dt) {
+        const dtScale = dt / 16.666;
         for (let i = enemies.length - 1; i >= 0; i--) {
             const e = enemies[i];
-            if (!e.boss) { e.y += e.speed; if (e.zigzag) { e.angle += 0.04; e.x += Math.sin(e.angle) * e.zigAmp; } e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.y > H + e.h) { enemies.splice(i, 1); playerHit(); continue; } }
+            if (!e.boss) { 
+                e.y += e.speed * dtScale; 
+                if (e.zigzag) { 
+                    e.angle += 0.04 * dtScale; 
+                    e.x += Math.sin(e.angle) * e.zigAmp * dtScale; 
+                } 
+                e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); 
+                if (e.y > H + e.h) { enemies.splice(i, 1); playerHit(); continue; } 
+            }
             if (e.boss) {
-                if (!isOnScreen(e) && !e.bossDiving) { e.y += 1.5; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
-                const bsx = 2.5 + wave * 0.3; e.x += e.bossDir * bsx;
-                if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; } if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
-                if (!e.bossDiving && !e.bossReturning) { e.bossDiveTimer += dt; if (e.bossDiveTimer > Math.max(1800, 4000 - wave * 200)) { e.bossDiving = true; e.bossDiveTimer = 0; } const ty = H * 0.15 + e.h / 2; if (e.y < ty - 3) e.y += 1; else if (e.y > ty + 3) e.y -= 1; e.y += Math.sin(Date.now() / 800) * 0.4; }
-                if (e.bossDiving) { e.y += 5 + wave * 0.4; if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } }
-                if (e.bossReturning) { e.y -= 2.5; if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; } }
+                if (!isOnScreen(e) && !e.bossDiving) { 
+                    e.y += 1.5 * dtScale; 
+                    e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); 
+                    if (e.flash > 0) e.flash -= dt; continue; 
+                }
+                const bsx = (2.5 + wave * 0.3) * dtScale; 
+                e.x += e.bossDir * bsx;
+                if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; } 
+                if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
+                
+                if (!e.bossDiving && !e.bossReturning) { 
+                    e.bossDiveTimer += dt; 
+                    if (e.bossDiveTimer > Math.max(1800, 4000 - wave * 200)) { e.bossDiving = true; e.bossDiveTimer = 0; } 
+                    const ty = H * 0.15 + e.h / 2; 
+                    if (e.y < ty - 3) e.y += 1 * dtScale; else if (e.y > ty + 3) e.y -= 1 * dtScale; 
+                    e.y += Math.sin(Date.now() / 800) * 0.4 * dtScale; 
+                }
+                if (e.bossDiving) { 
+                    e.y += (5 + wave * 0.4) * dtScale; 
+                    if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } 
+                    if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(6, 200); } 
+                }
+                if (e.bossReturning) { 
+                    e.y -= 2.5 * dtScale; 
+                    if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; } 
+                }
                 e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x));
             }
             if (e.flash > 0) e.flash -= dt;
         }
     }
+    
     function drawEnemies() {
         for (const e of enemies) {
             if (!e.boss && !isOnScreen(e)) continue; ctx.save();
@@ -502,20 +575,42 @@
 
     // ===== ЧАСТИЦЫ + ТЕКСТ =====
     function boom(x, y, c, col) { for (let i = 0; i < c; i++) { const a = Math.random() * Math.PI * 2, v = Math.random() * 5 + 2; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: Math.random() * 4 + 1.5, life: 1, decay: Math.random() * 0.025 + 0.015, color: col || `hsl(${Math.random() * 50 + 10},100%,55%)` }); } }
-    function updateParticles() { for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.life -= p.decay; if (p.life <= 0) particles.splice(i, 1); } }
+    function updateParticles(dt) { 
+        const dtScale = dt / 16.666;
+        for (let i = particles.length - 1; i >= 0; i--) { 
+            const p = particles[i]; 
+            p.x += p.vx * dtScale; 
+            p.y += p.vy * dtScale; 
+            p.vy += 0.06 * dtScale; 
+            p.life -= p.decay * dtScale; 
+            if (p.life <= 0) particles.splice(i, 1); 
+        } 
+    }
     function drawParticles() { for (const p of particles) { ctx.save(); ctx.globalAlpha = p.life; ctx.shadowBlur = 6; ctx.shadowColor = p.color; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } }
+    
     function addText(x, y, t, c, s, d) { floatTexts.push({ x, y, text: t, color: c, size: s || 22, life: 1, vy: -1.2, decay: d || 0.015 }); }
-    function updateTexts() { for (let i = floatTexts.length - 1; i >= 0; i--) { const t = floatTexts[i]; t.y += t.vy; t.life -= t.decay; if (t.life <= 0) floatTexts.splice(i, 1); } }
+    function updateTexts(dt) { 
+        const dtScale = dt / 16.666;
+        for (let i = floatTexts.length - 1; i >= 0; i--) { 
+            const t = floatTexts[i]; 
+            t.y += t.vy * dtScale; 
+            t.life -= t.decay * dtScale; 
+            if (t.life <= 0) floatTexts.splice(i, 1); 
+        } 
+    }
     function drawTexts() { for (const t of floatTexts) { ctx.save(); ctx.globalAlpha = t.life; ctx.fillStyle = t.color; ctx.font = `bold ${t.size}px Orbitron`; ctx.textAlign = 'center'; ctx.shadowBlur = 12; ctx.shadowColor = t.color; ctx.fillText(t.text, t.x, t.y); ctx.restore(); } }
 
     // ===== СЕРДЕЧКИ =====
     function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
     function spawnHeart() { hearts.push({ x: Math.random() * (W - 60) + 30, y: -30, size: 22, speed: 1.5 + Math.random() * 0.8, glow: 0 }); }
     function updateHearts(dt) {
+        const dtScale = dt / 16.666;
         heartTimer += dt;
         if (heartTimer >= HEART_INTERVAL) { heartTimer = 0; if (Math.random() < HEART_CHANCE && lives < MAX_LIVES) spawnHeart(); }
         for (let i = hearts.length - 1; i >= 0; i--) {
-            const h = hearts[i]; h.y += h.speed; h.glow += 0.05;
+            const h = hearts[i]; 
+            h.y += h.speed * dtScale; 
+            h.glow += 0.05 * dtScale;
             if (h.y > H + 40) { hearts.splice(i, 1); continue; }
             if (dist(player.x, player.y, h.x, h.y) < 30) { hearts.splice(i, 1); if (lives < MAX_LIVES) { lives++; elLives.textContent = lives; addText(h.x, h.y, '+1 ❤️', '#ff4444', 24); boom(h.x, h.y, 12, '#ff4444'); playSynthHeal(); } }
         }
@@ -557,15 +652,47 @@
     // ===== ТРЯСКА + ВОЛНЫ =====
     function doShake(a, d) { shakeAmt = a; shakeDur = d; }
     function updateShake(dt) { if (shakeDur > 0) { shakeDur -= dt; shakeX = (Math.random() - 0.5) * shakeAmt; shakeY = (Math.random() - 0.5) * shakeAmt; if (shakeDur <= 0) shakeX = shakeY = shakeAmt = 0; } }
-    function startWave() { waveState = 'active'; const isBoss = wave % CFG.bossEvery === 0; if (isBoss) { toSpawn = 0; spawnEnemy(true); bossAlive = true; addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn'); } else { toSpawn = CFG.enemyCount + wave * 2; spawnInterval = Math.max(350, CFG.spawnDelay - wave * 40); spawnTimer = 0; addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); playSynthWave(); } elWave.textContent = wave; }
+    
+    function startWave() { 
+        waveState = 'active'; 
+        const isBoss = wave % CFG.bossEvery === 0; 
+        if (isBoss) { 
+            toSpawn = 0; 
+            spawnEnemy(true); 
+            bossAlive = true; 
+            addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); 
+            playSound('bossWarn'); 
+        } else { 
+            // Количество врагов растет чуть плавнее (1.5 за волну вместо 2)
+            toSpawn = CFG.enemyCount + Math.floor(wave * 1.5); 
+            // Задержка спавна упирается в наш новый безопасный лимит (minSpawnDelay)
+            spawnInterval = Math.max(CFG.minSpawnDelay, CFG.spawnDelay - wave * 30); 
+            spawnTimer = 0; 
+            addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); 
+            playSynthWave(); 
+        } 
+        elWave.textContent = wave; 
+    }
+    
     function updateWave(dt) { if (waveState === 'active') { if (toSpawn > 0) { spawnTimer += dt; if (spawnTimer >= spawnInterval) { spawnTimer = 0; spawnEnemy(false); toSpawn--; } } if (toSpawn <= 0 && enemies.length === 0) { waveState = 'cooldown'; wavePauseTimer = 0; addText(W / 2, H / 2, '✔ ВОЛНА ПРОЙДЕНА!', '#0f0', 26, 0.008); playSynthWaveDone(); } } else { wavePauseTimer += dt; if (wavePauseTimer >= CFG.wavePause) { wave++; startWave(); } } }
 
     // ===== ГЛАВНЫЙ ЦИКЛ =====
     function loop(time) {
         if (!running) return; animId = requestAnimationFrame(loop);
         const dt = Math.min(time - lastTime, 50); lastTime = time;
-        updateStars(); updatePlayer(dt); handleFiring(dt); updateBullets(); updateEnemies(dt);
-        updateParticles(); updateTexts(); updateHearts(dt); checkCollisions(); updateWave(dt); updateShake(dt);
+        
+        updateStars(dt); 
+        updatePlayer(dt); 
+        handleFiring(dt); 
+        updateBullets(dt); 
+        updateEnemies(dt);
+        updateParticles(dt); 
+        updateTexts(dt); 
+        updateHearts(dt); 
+        checkCollisions(); 
+        updateWave(dt); 
+        updateShake(dt);
+        
         ctx.save(); ctx.translate(shakeX, shakeY); ctx.fillStyle = '#050510'; ctx.fillRect(-10, -10, W + 20, H + 20);
         drawStars(); drawBullets(); drawEnemies(); drawHearts(); drawPlayer(); drawParticles(); drawTexts();
         ctx.restore();
@@ -613,4 +740,3 @@
     initSupabase();
 
 })();
-
