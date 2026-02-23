@@ -392,15 +392,21 @@
         lives:        3,
         invincTime:   2000,
         wavePause:    2500,
-        bossEvery:    5,
-        maxEnemyHp:   4         // Макс ХП обычной Галюхи (снижено с 6, чтобы не были бетонными)
+        bossEvery:    5
     };
 
-    function smooth(startVal, endVal, currentWave, halfWave) {
+    // ============================================================
+    //  ★ УМНЫЙ СКЕЙЛИНГ (Замена старой функции smooth)
+    // ============================================================
+    function scaleLimitless(startVal, softCap, currentWave, speedFactor) {
         if (currentWave <= 1) return startVal;
         const w = currentWave - 1;
-        const t = w / (w + halfWave);
-        return startVal + (endVal - startVal) * t;
+        // Плавный рост до "комфортного" потолка
+        const t = w / (w + speedFactor);
+        const base = startVal + (softCap - startVal) * t;
+        // А вот это не даст игре стать скучной: бесконечная, но медленная прибавка
+        const hardcoreCreep = w * (Math.abs(startVal) * 0.03); 
+        return base + hardcoreCreep;
     }
 
     // ======= СОСТОЯНИЕ =======
@@ -457,14 +463,16 @@
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
 
-        // Скорость обычных: БЫЛО 3.0-6.5 -> СТАЛО 2.0-5.0 (умеренно быстро)
-        const spd = isBoss ? 0 : smooth(2.0, 5.0, wave, 30) + Math.random() * 0.8;
+        // Скорость обычных: медленно, но верно растет в космос
+        const spd = isBoss ? 0 : scaleLimitless(2.0, 5.0, wave, 25) + Math.random() * 1.5;
 
         let hp;
         if (isBoss) {
-            hp = Math.floor(smooth(20, 80, wave, 25));
+            // Босс теперь реально БОСС. Базовые 40 ХП + по 15 ХП за КАЖДУЮ волну.
+            hp = 40 + (wave * 15);
         } else {
-            hp = Math.min(CFG.maxEnemyHp, 1 + Math.floor(smooth(0, 4, wave, 15)));
+            // Обычным мобам ХП тоже чутка апаем, но без фанатизма
+            hp = Math.floor(scaleLimitless(1, 4, wave, 15));
         }
 
         const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
@@ -473,7 +481,7 @@
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
             zigzag: !isBoss && Math.random() > 0.4, 
-            zigAmp: (Math.random() - 0.5) * 5,     
+            zigAmp: (Math.random() - 0.5) * 6, // Чуть сильнее зигзаг     
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0, bossDiving: false, bossReturning: false
@@ -501,16 +509,20 @@
             if (e.boss) {
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
-                // Скорость босса по горизонтали: до 6.5
-                const bossHorizSpd = smooth(3.0, 6.5, wave, 30) * s60;
+                // Механика ЯРОСТИ: чем меньше ХП, тем быстрее босс (до 2х раз)
+                const hpPercent = Math.max(0.1, e.hp / e.maxHp);
+                const enrageMult = 1 + (1 - hpPercent); 
+
+                const bossHorizSpd = scaleLimitless(2.5, 5.5, wave, 30) * enrageMult * s60;
                 e.x += e.bossDir * bossHorizSpd;
+                
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
                 if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
 
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
-                    // Интервал нырка: от 3 до 1.5 сек (не спамит каждую секунду, дает подышать)
-                    const diveInterval = smooth(3000, 1500, wave, 25);
+                    // Ныряет чаще, когда у нее мало ХП
+                    const diveInterval = Math.max(1000, scaleLimitless(3000, 1500, wave, 25) * hpPercent);
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
                     const ty = H * 0.15 + e.h / 2;
@@ -519,15 +531,16 @@
                 }
 
                 if (e.bossDiving) {
-                    // Скорость нырка: от 7.5 до 12.5 (быстро, но реально увернуться)
-                    const diveSpd = smooth(7.5, 12.5, wave, 30) * s60;
+                    const diveSpd = scaleLimitless(7.0, 11.0, wave, 30) * enrageMult * s60;
                     e.y += diveSpd;
-                    if (e.y >= player.y - 10) { e.y = player.y - 10; e.bossDiving = false; e.bossReturning = true; doShake(8, 200); }
-                    if (e.y > H - 30) { e.y = H - 30; e.bossDiving = false; e.bossReturning = true; doShake(8, 200); }
+                    if (e.y >= player.y - 10 || e.y > H - 30) { 
+                        e.y = Math.min(player.y - 10, H - 30); 
+                        e.bossDiving = false; e.bossReturning = true; doShake(10, 250); 
+                    }
                 }
 
                 if (e.bossReturning) {
-                    const retSpd = smooth(5.0, 8.0, wave, 30) * s60;
+                    const retSpd = scaleLimitless(4.0, 7.0, wave, 30) * s60;
                     e.y -= retSpd;
                     if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; }
                 }
@@ -586,9 +599,23 @@
                 if (dist(b.x, b.y, e.x, e.y) < e.w / 2 + 6) {
                     bullets.splice(bi, 1); e.hp--; e.flash = 80; boom(b.x, b.y, 4, '#0ff'); playSynthHit();
                     if (e.hp <= 0) {
-                        const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score; boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80'); addText(e.x, e.y, '+' + pts, e.boss ? '#ff0' : '#0ff');
-                        if (e.boss) { bossAlive = false; doShake(16, 600); addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008); playSound('bossKill'); } 
-                        else { playSound('kill'); }
+                        const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score; 
+                        boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80'); 
+                        
+                        // Микро-рандом для обычного текста, чтобы не слипались в кучу
+                        const tx = e.x + (Math.random() - 0.5) * 30;
+                        const ty = e.y + (Math.random() - 0.5) * 20;
+                        addText(tx, ty, '+' + pts, e.boss ? '#ff0' : '#0ff');
+
+                        if (e.boss) { 
+                            bossAlive = false; doShake(16, 600); 
+                            // ФИКС БАГА: удаляем старые тексты босса, чтобы не стакались друг на друге
+                            floatTexts = floatTexts.filter(t => !t.text.includes('ГАЛЮХА УНИЧТОЖЕНА'));
+                            addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008); 
+                            playSound('bossKill'); 
+                        } else { 
+                            playSound('kill'); 
+                        }
                         enemies.splice(ei, 1);
                     }
                     break;
@@ -632,12 +659,14 @@
         const isBoss = wave % CFG.bossEvery === 0;
 
         if (isBoss) {
-            toSpawn = 0; spawnEnemy(true); bossAlive = true; addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn');
+            toSpawn = 0; spawnEnemy(true); bossAlive = true; 
+            floatTexts = floatTexts.filter(t => !t.text.includes('БОСС')); // На всякий тоже чистим
+            addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn');
         } else {
-            // Кол-во врагов: от 6 до 35
-            toSpawn = Math.floor(smooth(6, 35, wave, 25));
-            // Интервал: от 900мс до 350мс
-            spawnInterval = smooth(900, 350, wave, 25);
+            // Растет бесконечно, но не крашит браузер
+            toSpawn = Math.floor(scaleLimitless(8, 45, wave, 25));
+            // Интервал падает, но не ниже 250мс (иначе будет сплошная стена)
+            spawnInterval = Math.max(250, scaleLimitless(900, 300, wave, 25));
 
             spawnTimer = 0; addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); playSynthWave();
         }
