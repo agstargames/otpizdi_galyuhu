@@ -425,7 +425,8 @@
     function updatePlayer(dt) {
         const s60 = dt / 16.666;
         
-        const currentSpd = Math.min(22, CFG.playerSpeed + wave * 0.15);
+        // ★ АП: Увеличил лимит скорости игрока, чтобы ты мог убежать от пиздеца
+        const currentSpd = Math.min(25, CFG.playerSpeed + wave * 0.2);
         const speed = currentSpd * s60;
 
         if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
@@ -462,7 +463,6 @@
             bullets.push({ x: player.x - 10, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 10, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
         } else {
-            // ★ ИСПРАВЛЕНА ОПЕЧАТКА ТУТ (один раз y: а не два)
             bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
             bullets.push({ x: player.x - 12, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 12, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
@@ -516,7 +516,8 @@
 
         let hp;
         if (isBoss) {
-            hp = 60 + (wave * 40);
+            // Нерф: чутка срезал прибавку ХП боссу (было +40, стало +30)
+            hp = 50 + (wave * 30);
         } else {
             hp = Math.floor(scaleLimitless(1, 8, wave, 15));
         }
@@ -556,9 +557,12 @@
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
                 const hpPercent = Math.max(0.1, e.hp / e.maxHp);
-                const enrageMult = 1 + (1 - hpPercent) * 0.6; 
+                
+                // ★ НЕРФ ЯРОСТИ: теперь макс +40% к скорости, а не 60%
+                const enrageMult = 1 + (1 - hpPercent) * 0.4; 
 
-                const bossHorizSpd = scaleLimitless(4.0, 9.0, wave, 30) * enrageMult * s60;
+                // ★ КАП СКОРОСТИ (По горизонтали): Не больше 12 пикселей за кадр
+                const bossHorizSpd = Math.min(12, scaleLimitless(4.0, 8.0, wave, 30) * enrageMult) * s60;
                 e.x += e.bossDir * bossHorizSpd;
                 
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
@@ -567,7 +571,8 @@
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
                     
-                    const diveInterval = Math.max(600, scaleLimitless(2500, 800, wave, 25) * hpPercent);
+                    // ★ ЖЕСТКИЙ НЕРФ СПАМА НЫРКА: Абсолютный минимум 1.3 секунды между нырками. Ты успеешь пострелять.
+                    const diveInterval = Math.max(1300, scaleLimitless(2800, 1200, wave, 25) * (0.5 + hpPercent * 0.5));
                     
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
@@ -577,7 +582,8 @@
                 }
 
                 if (e.bossDiving) {
-                    const diveSpd = scaleLimitless(12.0, 22.0, wave, 30) * enrageMult * s60;
+                    // ★ КАП СКОРОСТИ (Падение): Ограничено до 18. Быстро, но увернуться можно.
+                    const diveSpd = Math.min(18.0, scaleLimitless(10.0, 15.0, wave, 30) * enrageMult) * s60;
                     e.y += diveSpd;
                     if (e.y >= player.y - 10 || e.y > H - 30) { 
                         e.y = Math.min(player.y - 10, H - 30); 
@@ -586,7 +592,7 @@
                 }
 
                 if (e.bossReturning) {
-                    const retSpd = scaleLimitless(5.0, 9.0, wave, 30) * s60;
+                    const retSpd = scaleLimitless(5.0, 8.0, wave, 30) * s60;
                     e.y -= retSpd;
                     if (e.y <= H * 0.15 + e.h / 2) { 
                         e.y = H * 0.15 + e.h / 2; 
