@@ -121,7 +121,7 @@
         return new Promise(resolve => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = () => resolve(img); // В инкогнито может упасть сюда
+            img.onerror = () => resolve(img);
             img.src = src;
         });
     }
@@ -462,11 +462,12 @@
             bullets.push({ x: player.x - 10, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 10, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
         } else {
+            // ★ ИСПРАВЛЕНА ОПЕЧАТКА ТУТ (один раз y: а не два)
             bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
             bullets.push({ x: player.x - 12, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 12, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
-            bullets.push({ x: player.x - 24, y: y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
-            bullets.push({ x: player.x + 24, y: y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
+            bullets.push({ x: player.x - 24, y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
+            bullets.push({ x: player.x + 24, y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
         }
         
         playSynthShoot();
@@ -477,7 +478,6 @@
         fireTimer -= dt; 
         if (fireTimer <= 0) { 
             shoot(); 
-            // ★ ФИКС СКОРОСТРЕЛЬНОСТИ: Не опускаем ниже 65мс, чтобы игроку не было СЛИШКОМ легко
             fireTimer = Math.max(65, CFG.fireRate - (wave * 1.5)); 
         } 
     }
@@ -512,15 +512,12 @@
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
         
-        // Обычные мобы: летят всё быстрее
         const spd = isBoss ? 0 : scaleLimitless(2.5, 7.5, wave, 20) + Math.random() * 2.0;
 
         let hp;
         if (isBoss) {
-            // ★ БОСС-ТАНК: У нее теперь дохуя здоровья, чтобы выдержать твои 5 пушек (60 база + 40 за волну)
             hp = 60 + (wave * 40);
         } else {
-            // Мобы тоже толстеют
             hp = Math.floor(scaleLimitless(1, 8, wave, 15));
         }
 
@@ -530,7 +527,6 @@
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
             zigzag: !isBoss && Math.random() > 0.4, 
-            // ★ ХАРДКОРНЫЙ ЗИГЗАГ: мобы маневрируют как ебанутые на поздних волнах, чтобы обойти твой веер
             zigAmp: (Math.random() - 0.5) * scaleLimitless(6, 15, wave, 20),     
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
@@ -560,10 +556,8 @@
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
                 const hpPercent = Math.max(0.1, e.hp / e.maxHp);
-                // ★ ЯРОСТЬ: Она ускоряется до +60%, когда ХП мало
                 const enrageMult = 1 + (1 - hpPercent) * 0.6; 
 
-                // ★ МАНСЫ БОССА: Она очень быстро носится влево-вправо, заставляя тебя целиться
                 const bossHorizSpd = scaleLimitless(4.0, 9.0, wave, 30) * enrageMult * s60;
                 e.x += e.bossDir * bossHorizSpd;
                 
@@ -573,7 +567,6 @@
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
                     
-                    // ★ МАЛО ВРЕМЕНИ ПОДЫШАТЬ: Интервал нырка снижается до минимума (600мс) на хай лвлах при ярости
                     const diveInterval = Math.max(600, scaleLimitless(2500, 800, wave, 25) * hpPercent);
                     
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
@@ -584,7 +577,6 @@
                 }
 
                 if (e.bossDiving) {
-                    // ★ ГАЛЮХА-МЕТЕОР: Возвращаем бешеную скорость падения, уворачивайся!
                     const diveSpd = scaleLimitless(12.0, 22.0, wave, 30) * enrageMult * s60;
                     e.y += diveSpd;
                     if (e.y >= player.y - 10 || e.y > H - 30) { 
@@ -594,7 +586,6 @@
                 }
 
                 if (e.bossReturning) {
-                    // Возвращается тоже быстро, чтобы не терять динамику
                     const retSpd = scaleLimitless(5.0, 9.0, wave, 30) * s60;
                     e.y -= retSpd;
                     if (e.y <= H * 0.15 + e.h / 2) { 
