@@ -121,7 +121,7 @@
         return new Promise(resolve => {
             const img = new Image();
             img.onload = () => resolve(img);
-            img.onerror = () => resolve(img);
+            img.onerror = () => resolve(img); // В инкогнито может упасть сюда
             img.src = src;
         });
     }
@@ -260,7 +260,7 @@
         }
         currentNick = nick; saveLastNick(nick); hideNickModal();
         
-        unlockAudio(); // Снимаем блокировку звука
+        unlockAudio();
         startGameDirect();
     });
 
@@ -289,13 +289,12 @@
         } catch (e) {}
     }
 
-    // Функция прогрева: проигрывает пустой звук, чтобы браузер скомпилировал ноды заранее
     function warmUpAudioEngine() {
         if (!audioCtx || audioCtx.state === 'suspended') return;
         try {
             const o = audioCtx.createOscillator();
             const g = audioCtx.createGain();
-            g.gain.value = 0.001; // Почти нулевая громкость
+            g.gain.value = 0.001; 
             o.connect(g); g.connect(audioCtx.destination);
             o.start(0); o.stop(audioCtx.currentTime + 0.05);
         } catch (e) {}
@@ -369,9 +368,7 @@
         
         if (!audioUnlocked) {
             audioUnlocked = true;
-            warmUpAudioEngine(); // Прогреваем звук от лагов
-            
-            // Воспроизводим музыку и тут же ставим на паузу, чтобы "легализовать" её для браузера
+            warmUpAudioEngine();
             musicTrack.play().then(() => {
                 musicTrack.pause();
                 musicTrack.currentTime = 0;
@@ -383,28 +380,23 @@
     document.addEventListener('touchstart', unlockAudio, { once: true });
 
     // ============================================================
-    //  ★ КОНФИГ + БАЛАНС (ЗОЛОТАЯ СЕРЕДИНА)
+    //  ★ КОНФИГ + БАЛАНС 
     // ============================================================
     const CFG = {
-        playerSpeed:  12,       // Корабль маневренный
-        bulletSpeed:  20,       // Пули летят быстро
-        fireRate:     110,      
+        playerSpeed:  12,       // Базовая скорость (будет расти)
+        bulletSpeed:  20,       
+        fireRate:     110,      // Базовая задержка (будет падать)
         lives:        3,
         invincTime:   2000,
         wavePause:    2500,
         bossEvery:    5
     };
 
-    // ============================================================
-    //  ★ УМНЫЙ СКЕЙЛИНГ (Замена старой функции smooth)
-    // ============================================================
     function scaleLimitless(startVal, softCap, currentWave, speedFactor) {
         if (currentWave <= 1) return startVal;
         const w = currentWave - 1;
-        // Плавный рост до "комфортного" потолка
         const t = w / (w + speedFactor);
         const base = startVal + (softCap - startVal) * t;
-        // А вот это не даст игре стать скучной: бесконечная, но медленная прибавка
         const hardcoreCreep = w * (Math.abs(startVal) * 0.03); 
         return base + hardcoreCreep;
     }
@@ -432,13 +424,18 @@
     function initPlayer() { player = { x: W / 2, y: H - 100, w: 40, h: 50 }; }
     function updatePlayer(dt) {
         const s60 = dt / 16.666;
-        const speed = CFG.playerSpeed * s60;
+        
+        // ★ ПРОКАЧКА: С каждой волной корабль становится маневреннее
+        const currentSpd = Math.min(22, CFG.playerSpeed + wave * 0.15);
+        const speed = currentSpd * s60;
+
         if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
         if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
         if (pointerX !== null) player.x += (pointerX - player.x) * (0.2 * s60); 
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
     }
+    
     function drawPlayer() {
         if (invincible && Math.floor(Date.now() / 80) % 2) return;
         const { x, y } = player; ctx.save(); ctx.translate(x, y);
@@ -451,28 +448,85 @@
         ctx.restore();
     }
 
-    // ===== ПУЛИ =====
-    function shoot() { bullets.push({ x: player.x, y: player.y - 28, w: 4, h: 14 }); playSynthShoot(); }
-    function handleFiring(dt) { if (!firing) { fireTimer = 0; return; } fireTimer -= dt; if (fireTimer <= 0) { shoot(); fireTimer = CFG.fireRate; } }
-    function updateBullets(dt) { const s60 = dt / 16.666; const speed = CFG.bulletSpeed * s60; for (let i = bullets.length - 1; i >= 0; i--) { bullets[i].y -= speed; if (bullets[i].y < -20) bullets.splice(i, 1); } }
-    function drawBullets() { ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; for (const b of bullets) { ctx.globalAlpha = 1; ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); ctx.globalAlpha = 0.3; ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); } ctx.globalAlpha = 1; ctx.restore(); }
+    // ===== ПУЛИ (ЭВОЛЮЦИЯ СТВОЛОВ) =====
+    function shoot() {
+        const w = 4, h = 14;
+        const bSpd = CFG.bulletSpeed; // Базовая скорость пули
+
+        // ★ ПРОКАЧКА ОРУЖИЯ В ЗАВИСИМОСТИ ОТ ВОЛНЫ
+        if (wave < 5) {
+            // Уровень 1: Одиночная (Волны 1-4)
+            bullets.push({ x: player.x, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
+        } else if (wave < 10) {
+            // Уровень 2: Двойная (Волны 5-9)
+            bullets.push({ x: player.x - 8, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
+            bullets.push({ x: player.x + 8, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
+        } else if (wave < 15) {
+            // Уровень 3: Тройной веер (Волны 10-14)
+            bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
+            bullets.push({ x: player.x - 10, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
+            bullets.push({ x: player.x + 10, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
+        } else {
+            // Уровень 4: МАШИНА СМЕРТИ (5 пуль, Волны 15+)
+            bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
+            bullets.push({ x: player.x - 12, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
+            bullets.push({ x: player.x + 12, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
+            bullets.push({ x: player.x - 24, y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
+            bullets.push({ x: player.x + 24, y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
+        }
+        
+        playSynthShoot();
+    }
+
+    function handleFiring(dt) { 
+        if (!firing) { fireTimer = 0; return; } 
+        fireTimer -= dt; 
+        if (fireTimer <= 0) { 
+            shoot(); 
+            // ★ ПРОКАЧКА: Скорострельность растет с каждой волной (база 110мс, снижается до 55мс)
+            fireTimer = Math.max(55, CFG.fireRate - (wave * 2)); 
+        } 
+    }
+
+    function updateBullets(dt) { 
+        const s60 = dt / 16.666; 
+        for (let i = bullets.length - 1; i >= 0; i--) { 
+            bullets[i].x += bullets[i].vx * s60;
+            bullets[i].y += bullets[i].vy * s60; 
+            // Удаляем пулю, если она улетела за края экрана
+            if (bullets[i].y < -20 || bullets[i].x < -20 || bullets[i].x > W + 20) {
+                bullets.splice(i, 1); 
+            }
+        } 
+    }
+
+    function drawBullets() { 
+        ctx.save(); 
+        ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; 
+        for (const b of bullets) { 
+            ctx.globalAlpha = 1; 
+            ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); 
+            ctx.globalAlpha = 0.3; 
+            ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); 
+        } 
+        ctx.globalAlpha = 1; 
+        ctx.restore(); 
+    }
 
     // ============================================================
-    //  ★ ВРАГИ (Сбалансированные скорости)
+    //  ★ ВРАГИ И БОСС 
     // ============================================================
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
-
-        // Скорость обычных: медленно, но верно растет в космос
         const spd = isBoss ? 0 : scaleLimitless(2.0, 5.0, wave, 25) + Math.random() * 1.5;
 
         let hp;
         if (isBoss) {
-            // Босс теперь реально БОСС. Базовые 40 ХП + по 15 ХП за КАЖДУЮ волну.
-            hp = 40 + (wave * 15);
+            // ★ БОСС ЖИРЕЕТ СИЛЬНЕЕ, потому что у тебя теперь дробовик
+            hp = 40 + (wave * 25);
         } else {
-            // Обычным мобам ХП тоже чутка апаем, но без фанатизма
-            hp = Math.floor(scaleLimitless(1, 4, wave, 15));
+            // Обычные мобы тоже слегка крепают
+            hp = Math.floor(scaleLimitless(1, 5, wave, 15));
         }
 
         const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
@@ -481,7 +535,7 @@
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
             zigzag: !isBoss && Math.random() > 0.4, 
-            zigAmp: (Math.random() - 0.5) * 6, // Чуть сильнее зигзаг     
+            zigAmp: (Math.random() - 0.5) * 6,     
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0, bossDiving: false, bossReturning: false
@@ -509,11 +563,10 @@
             if (e.boss) {
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
-                // Механика ЯРОСТИ: чем меньше ХП, тем быстрее босс (до 2х раз)
                 const hpPercent = Math.max(0.1, e.hp / e.maxHp);
-                const enrageMult = 1 + (1 - hpPercent); 
+                const enrageMult = 1 + (1 - hpPercent) * 0.35; 
 
-                const bossHorizSpd = scaleLimitless(2.5, 5.5, wave, 30) * enrageMult * s60;
+                const bossHorizSpd = scaleLimitless(2.5, 5.0, wave, 30) * enrageMult * s60;
                 e.x += e.bossDir * bossHorizSpd;
                 
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
@@ -521,8 +574,9 @@
 
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
-                    // Ныряет чаще, когда у нее мало ХП
-                    const diveInterval = Math.max(1000, scaleLimitless(3000, 1500, wave, 25) * hpPercent);
+                    
+                    const diveInterval = Math.max(1500, scaleLimitless(3500, 2000, wave, 25) * hpPercent);
+                    
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
                     const ty = H * 0.15 + e.h / 2;
@@ -531,7 +585,7 @@
                 }
 
                 if (e.bossDiving) {
-                    const diveSpd = scaleLimitless(7.0, 11.0, wave, 30) * enrageMult * s60;
+                    const diveSpd = scaleLimitless(6.0, 9.5, wave, 30) * enrageMult * s60;
                     e.y += diveSpd;
                     if (e.y >= player.y - 10 || e.y > H - 30) { 
                         e.y = Math.min(player.y - 10, H - 30); 
@@ -540,9 +594,13 @@
                 }
 
                 if (e.bossReturning) {
-                    const retSpd = scaleLimitless(4.0, 7.0, wave, 30) * s60;
+                    const retSpd = scaleLimitless(3.5, 6.0, wave, 30) * s60;
                     e.y -= retSpd;
-                    if (e.y <= H * 0.15 + e.h / 2) { e.y = H * 0.15 + e.h / 2; e.bossReturning = false; e.bossDiveTimer = 0; }
+                    if (e.y <= H * 0.15 + e.h / 2) { 
+                        e.y = H * 0.15 + e.h / 2; 
+                        e.bossReturning = false; 
+                        e.bossDiveTimer = 0;
+                    }
                 }
                 e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x));
             }
@@ -556,7 +614,6 @@
             if (e.flash > 0) { ctx.shadowBlur = 25; ctx.shadowColor = '#fff'; }
             drawImgSafe(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
             
-            // ★ ИСПРАВЛЕНО: Теперь ХП рисуется всегда, даже если у врага 1 ХП
             if (e.hp > 0) {
                 const bw = e.w * (e.boss ? 1.3 : 1), bh = e.boss ? 8 : 5, bx = e.x - bw / 2, by = e.y - e.h / 2 - (e.boss ? 20 : 12), r = e.hp / e.maxHp;
                 ctx.fillStyle = '#222'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = r > 0.5 ? '#0f0' : r > 0.25 ? '#ff0' : '#f00';
@@ -602,14 +659,12 @@
                         const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score; 
                         boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80'); 
                         
-                        // Микро-рандом для обычного текста, чтобы не слипались в кучу
                         const tx = e.x + (Math.random() - 0.5) * 30;
                         const ty = e.y + (Math.random() - 0.5) * 20;
                         addText(tx, ty, '+' + pts, e.boss ? '#ff0' : '#0ff');
 
                         if (e.boss) { 
                             bossAlive = false; doShake(16, 600); 
-                            // ФИКС БАГА: удаляем старые тексты босса, чтобы не стакались друг на друге
                             floatTexts = floatTexts.filter(t => !t.text.includes('ГАЛЮХА УНИЧТОЖЕНА'));
                             addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008); 
                             playSound('bossKill'); 
@@ -618,7 +673,7 @@
                         }
                         enemies.splice(ei, 1);
                     }
-                    break;
+                    break; // Переходим к следующей пуле
                 }
             }
         }
@@ -652,7 +707,7 @@
     function updateShake(dt) { if (shakeDur > 0) { shakeDur -= dt; shakeX = (Math.random() - 0.5) * shakeAmt; shakeY = (Math.random() - 0.5) * shakeAmt; if (shakeDur <= 0) shakeX = shakeY = shakeAmt = 0; } }
 
     // ============================================================
-    //  ★ ВОЛНЫ (Более честный спавн)
+    //  ★ ВОЛНЫ
     // ============================================================
     function startWave() {
         waveState = 'active';
@@ -660,15 +715,23 @@
 
         if (isBoss) {
             toSpawn = 0; spawnEnemy(true); bossAlive = true; 
-            floatTexts = floatTexts.filter(t => !t.text.includes('БОСС')); // На всякий тоже чистим
+            floatTexts = floatTexts.filter(t => !t.text.includes('БОСС')); 
             addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn');
         } else {
-            // Растет бесконечно, но не крашит браузер
             toSpawn = Math.floor(scaleLimitless(8, 45, wave, 25));
-            // Интервал падает, но не ниже 250мс (иначе будет сплошная стена)
             spawnInterval = Math.max(250, scaleLimitless(900, 300, wave, 25));
 
-            spawnTimer = 0; addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); playSynthWave();
+            // ★ Выводим инфу, если корабль прокачался
+            let extraText = '';
+            if (wave === 5) extraText = 'ОТКРЫТ ДВОЙНОЙ СТВОЛ!';
+            if (wave === 10) extraText = 'ОТКРЫТ ТРОЙНОЙ ВЕЕР!';
+            if (wave === 15) extraText = 'МАШИНА СМЕРТИ АКТИВИРОВАНА!';
+
+            spawnTimer = 0; 
+            addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); 
+            if (extraText) setTimeout(() => addText(W / 2, H / 2 + 40, extraText, '#0f0', 20, 0.006), 500);
+            
+            playSynthWave();
         }
         elWave.textContent = wave;
     }
@@ -697,7 +760,6 @@
     function startGameDirect() {
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
         
-        // ★ ПРИНУДИТЕЛЬНЫЙ ЗАПУСК МУЗЫКИ ДЛЯ РЕСТАРТА ★
         musicTrack.currentTime = 0;
         musicTrack.play().catch(()=>{});
 
@@ -712,7 +774,6 @@
         requestAnimationFrame(() => { resize(); running = true; lastTime = performance.now(); animId = requestAnimationFrame(loop); startWave(); });
     }
 
-    // При клике на кнопки Играть / Рестарт мы сразу анлочим аудио
     btnPlay.addEventListener('click', () => { showNickModal(); });
     btnRestart.addEventListener('click', () => { unlockAudio(); startGameDirect(); });
     btnMenu.addEventListener('click', () => { running = false; cancelAnimationFrame(animId); musicTrack.pause(); showScreen(menuScreen); });
