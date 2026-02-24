@@ -110,36 +110,62 @@
     }
 
     // ============================================================
-    //  ★ ПРЕЛОАДЕР КАРТИНОК
+    //  ★ ПРЕЛОАДЕР КАРТИНОК  (FIX: таймаут + catch + safety)
     // ============================================================
     let imagesLoaded = false;
     btnPlay.innerHTML = '⏳ ЗАГРУЗКА...';
     btnPlay.style.pointerEvents = 'none';
     btnPlay.style.opacity = '0.5';
 
+    /* ── Загрузка одной картинки с таймаутом ── */
     function loadImg(src) {
         return new Promise(resolve => {
             const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => resolve(img);
+            let settled = false;
+            const finish = () => {
+                if (!settled) { settled = true; resolve(img); }
+            };
+            img.onload  = finish;
+            img.onerror = finish;
+            setTimeout(finish, 6000);   // 6 сек макс на одну картинку
             img.src = src;
         });
     }
 
-    const ENEMY_IMGS = [];
-    const BOSS_IMG = new Image();
-
-    Promise.all([
-        loadImg('shit1.png'), loadImg('shit2.png'), loadImg('shit3.png'), loadImg('shit4.png'), loadImg('shit_final.png')
-    ]).then(imgs => {
-        ENEMY_IMGS.push(imgs[0], imgs[1], imgs[2], imgs[3]);
-        BOSS_IMG.src = imgs[4].src; BOSS_IMG.onload = () => {};
-        Object.assign(BOSS_IMG, { width: imgs[4].width, height: imgs[4].height });
+    /* ── Разблокировать кнопку (защита от двойного вызова) ── */
+    function enablePlayButton() {
+        if (imagesLoaded) return;
         imagesLoaded = true;
         btnPlay.innerHTML = '🚀 ИГРАТЬ';
         btnPlay.style.pointerEvents = 'auto';
         btnPlay.style.opacity = '1';
+    }
+
+    const ENEMY_IMGS = [];
+    let BOSS_IMG = null;                 // FIX: было const new Image()
+
+    Promise.all([
+        loadImg('shit1.png'),
+        loadImg('shit2.png'),
+        loadImg('shit3.png'),
+        loadImg('shit4.png'),
+        loadImg('shit_final.png')
+    ]).then(imgs => {
+        ENEMY_IMGS.push(imgs[0], imgs[1], imgs[2], imgs[3]);
+        BOSS_IMG = imgs[4];              // FIX: прямое присвоение, без src-гонки
+        enablePlayButton();
+    }).catch(err => {
+        console.warn('Image preload error:', err);
+        enablePlayButton();              // FIX: даже при ошибке — разблокируем
     });
+
+    /* ── Глобальный safety-таймаут ── */
+    setTimeout(() => {
+        if (!imagesLoaded) {
+            console.warn('⏱ Safety timeout — forcing play button');
+            enablePlayButton();
+        }
+    }, 10000);
 
     function drawImgSafe(img, x, y, w, h) {
         if (img && img.complete && img.naturalWidth > 0) {
@@ -237,7 +263,7 @@
                 return;
             }
             devCheck.classList.remove('hidden'); const n = nick.toLowerCase().trim();
-            if (n === 'miralys' || hasDevPassword(nick)) { devCheck.innerHTML = `<p class="dev-check-text">Это никнейм разработчика. Пруфани, что это ты.</p><input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Пароль..." maxlength="32" autocomplete="off">`; } 
+            if (n === 'miralys' || hasDevPassword(nick)) { devCheck.innerHTML = `<p class="dev-check-text">Это никнейм разработчика. Пруфани, что это ты.</p><input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Пароль..." maxlength="32" autocomplete="off">`; }
             else { devCheck.innerHTML = `<p class="dev-check-text setup-text">О, мы тебя знаем. Ты тоже разраб этой игры. Придумай пароль, пока никакая сука не спиздила аккаунт.</p><input type="password" id="dev-password" class="nick-input dev-password-input" placeholder="Придумай пароль..." maxlength="32" autocomplete="off">`; }
             setTimeout(() => { const pi = getPassInput(); if (pi) pi.addEventListener('keydown', e => { if (e.key === 'Enter') btnNickGo.click(); }); }, 50);
         } else {
@@ -254,12 +280,12 @@
         if (isDevNick(nick) && !isDevSessionOk(nick)) {
             const passInput = getPassInput(); const pass = passInput ? passInput.value : '';
             if (!pass) { if (passInput) { passInput.style.borderColor = '#f44'; setTimeout(() => { passInput.style.borderColor = '#ffcc00'; }, 1000); } return; }
-            if (isMainDev(nick) || hasDevPassword(nick)) { if (!checkDevPassword(nick, pass)) { hideNickModal(); impostorModal.classList.remove('hidden'); return; } } 
+            if (isMainDev(nick) || hasDevPassword(nick)) { if (!checkDevPassword(nick, pass)) { hideNickModal(); impostorModal.classList.remove('hidden'); return; } }
             else { saveDevPassword(nick, pass); }
             markDevSession(nick);
         }
         currentNick = nick; saveLastNick(nick); hideNickModal();
-        
+
         unlockAudio();
         startGameDirect();
     });
@@ -274,7 +300,7 @@
     const soundBuffers = {};
     const SOUND_FILES = { kill: 'snd_kill.mp3', playerHit: 'snd_player_hit.mp3', bossWarn: 'snd_boss_warn.mp3', bossKill: 'snd_boss_kill.mp3', gameover: 'snd_gameover.mp3' };
     const SOUND_VOLUME = { kill: 0.5, playerHit: 0.6, bossWarn: 0.6, bossKill: 0.7, gameover: 0.7 };
-    
+
     const musicTrack = new Audio('crystals.mp3');
     musicTrack.loop = true; musicTrack.volume = 0.4; musicTrack.preload = 'auto';
 
@@ -294,7 +320,7 @@
         try {
             const o = audioCtx.createOscillator();
             const g = audioCtx.createGain();
-            g.gain.value = 0.001; 
+            g.gain.value = 0.001;
             o.connect(g); g.connect(audioCtx.destination);
             o.start(0); o.stop(audioCtx.currentTime + 0.05);
         } catch (e) {}
@@ -365,7 +391,7 @@
     function unlockAudio() {
         initAudio();
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-        
+
         if (!audioUnlocked) {
             audioUnlocked = true;
             warmUpAudioEngine();
@@ -380,12 +406,12 @@
     document.addEventListener('touchstart', unlockAudio, { once: true });
 
     // ============================================================
-    //  ★ КОНФИГ + БАЛАНС 
+    //  ★ КОНФИГ + БАЛАНС
     // ============================================================
     const CFG = {
-        playerSpeed:  12,       
-        bulletSpeed:  20,       
-        fireRate:     110,      
+        playerSpeed:  12,
+        bulletSpeed:  20,
+        fireRate:     110,
         lives:        3,
         invincTime:   2000,
         wavePause:    2500,
@@ -397,7 +423,7 @@
         const w = currentWave - 1;
         const t = w / (w + speedFactor);
         const base = startVal + (softCap - startVal) * t;
-        const hardcoreCreep = w * (Math.abs(startVal) * 0.03); 
+        const hardcoreCreep = w * (Math.abs(startVal) * 0.03);
         return base + hardcoreCreep;
     }
 
@@ -424,18 +450,16 @@
     function initPlayer() { player = { x: W / 2, y: H - 100, w: 40, h: 50 }; }
     function updatePlayer(dt) {
         const s60 = dt / 16.666;
-        
-        // ★ АП: Увеличил лимит скорости игрока, чтобы ты мог убежать от пиздеца
         const currentSpd = Math.min(25, CFG.playerSpeed + wave * 0.2);
         const speed = currentSpd * s60;
 
         if (keys['ArrowLeft'] || keys['KeyA']) player.x -= speed;
         if (keys['ArrowRight'] || keys['KeyD']) player.x += speed;
-        if (pointerX !== null) player.x += (pointerX - player.x) * (0.2 * s60); 
+        if (pointerX !== null) player.x += (pointerX - player.x) * (0.2 * s60);
         player.x = Math.max(22, Math.min(W - 22, player.x));
         if (invincible) { invTimer -= dt; if (invTimer <= 0) invincible = false; }
     }
-    
+
     function drawPlayer() {
         if (invincible && Math.floor(Date.now() / 80) % 2) return;
         const { x, y } = player; ctx.save(); ctx.translate(x, y);
@@ -451,7 +475,7 @@
     // ===== ПУЛИ (ЭВОЛЮЦИЯ СТВОЛОВ) =====
     function shoot() {
         const w = 4, h = 14;
-        const bSpd = CFG.bulletSpeed; 
+        const bSpd = CFG.bulletSpeed;
 
         if (wave < 5) {
             bullets.push({ x: player.x, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
@@ -469,54 +493,53 @@
             bullets.push({ x: player.x - 24, y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
             bullets.push({ x: player.x + 24, y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
         }
-        
+
         playSynthShoot();
     }
 
-    function handleFiring(dt) { 
-        if (!firing) { fireTimer = 0; return; } 
-        fireTimer -= dt; 
-        if (fireTimer <= 0) { 
-            shoot(); 
-            fireTimer = Math.max(65, CFG.fireRate - (wave * 1.5)); 
-        } 
+    function handleFiring(dt) {
+        if (!firing) { fireTimer = 0; return; }
+        fireTimer -= dt;
+        if (fireTimer <= 0) {
+            shoot();
+            fireTimer = Math.max(65, CFG.fireRate - (wave * 1.5));
+        }
     }
 
-    function updateBullets(dt) { 
-        const s60 = dt / 16.666; 
-        for (let i = bullets.length - 1; i >= 0; i--) { 
+    function updateBullets(dt) {
+        const s60 = dt / 16.666;
+        for (let i = bullets.length - 1; i >= 0; i--) {
             bullets[i].x += bullets[i].vx * s60;
-            bullets[i].y += bullets[i].vy * s60; 
+            bullets[i].y += bullets[i].vy * s60;
             if (bullets[i].y < -20 || bullets[i].x < -20 || bullets[i].x > W + 20) {
-                bullets.splice(i, 1); 
+                bullets.splice(i, 1);
             }
-        } 
+        }
     }
 
-    function drawBullets() { 
-        ctx.save(); 
-        ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff'; 
-        for (const b of bullets) { 
-            ctx.globalAlpha = 1; 
-            ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h); 
-            ctx.globalAlpha = 0.3; 
-            ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5); 
-        } 
-        ctx.globalAlpha = 1; 
-        ctx.restore(); 
+    function drawBullets() {
+        ctx.save();
+        ctx.shadowBlur = 10; ctx.shadowColor = '#0ff'; ctx.fillStyle = '#0ff';
+        for (const b of bullets) {
+            ctx.globalAlpha = 1;
+            ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(b.x - b.w, b.y, b.w * 2, b.h * 1.5);
+        }
+        ctx.globalAlpha = 1;
+        ctx.restore();
     }
 
     // ============================================================
-    //  ★ ВРАГИ И ХАРДКОРНЫЙ БОСС 
+    //  ★ ВРАГИ И ХАРДКОРНЫЙ БОСС
     // ============================================================
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
-        
+
         const spd = isBoss ? 0 : scaleLimitless(2.5, 7.5, wave, 20) + Math.random() * 2.0;
 
         let hp;
         if (isBoss) {
-            // Нерф: чутка срезал прибавку ХП боссу (было +40, стало +30)
             hp = 50 + (wave * 30);
         } else {
             hp = Math.floor(scaleLimitless(1, 8, wave, 15));
@@ -527,8 +550,8 @@
         enemies.push({
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
-            zigzag: !isBoss && Math.random() > 0.4, 
-            zigAmp: (Math.random() - 0.5) * scaleLimitless(6, 15, wave, 20),     
+            zigzag: !isBoss && Math.random() > 0.4,
+            zigAmp: (Math.random() - 0.5) * scaleLimitless(6, 15, wave, 20),
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0, bossDiving: false, bossReturning: false
@@ -557,23 +580,18 @@
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
                 const hpPercent = Math.max(0.1, e.hp / e.maxHp);
-                
-                // ★ НЕРФ ЯРОСТИ: теперь макс +40% к скорости, а не 60%
-                const enrageMult = 1 + (1 - hpPercent) * 0.4; 
+                const enrageMult = 1 + (1 - hpPercent) * 0.4;
 
-                // ★ КАП СКОРОСТИ (По горизонтали): Не больше 12 пикселей за кадр
                 const bossHorizSpd = Math.min(12, scaleLimitless(4.0, 8.0, wave, 30) * enrageMult) * s60;
                 e.x += e.bossDir * bossHorizSpd;
-                
+
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
                 if (e.x > W - e.w / 2 - 20) { e.x = W - e.w / 2 - 20; e.bossDir = -1; }
 
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
-                    
-                    // ★ ЖЕСТКИЙ НЕРФ СПАМА НЫРКА: Абсолютный минимум 1.3 секунды между нырками. Ты успеешь пострелять.
                     const diveInterval = Math.max(1300, scaleLimitless(2800, 1200, wave, 25) * (0.5 + hpPercent * 0.5));
-                    
+
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
                     const ty = H * 0.15 + e.h / 2;
@@ -582,21 +600,20 @@
                 }
 
                 if (e.bossDiving) {
-                    // ★ КАП СКОРОСТИ (Падение): Ограничено до 18. Быстро, но увернуться можно.
                     const diveSpd = Math.min(18.0, scaleLimitless(10.0, 15.0, wave, 30) * enrageMult) * s60;
                     e.y += diveSpd;
-                    if (e.y >= player.y - 10 || e.y > H - 30) { 
-                        e.y = Math.min(player.y - 10, H - 30); 
-                        e.bossDiving = false; e.bossReturning = true; doShake(10, 250); 
+                    if (e.y >= player.y - 10 || e.y > H - 30) {
+                        e.y = Math.min(player.y - 10, H - 30);
+                        e.bossDiving = false; e.bossReturning = true; doShake(10, 250);
                     }
                 }
 
                 if (e.bossReturning) {
                     const retSpd = scaleLimitless(5.0, 8.0, wave, 30) * s60;
                     e.y -= retSpd;
-                    if (e.y <= H * 0.15 + e.h / 2) { 
-                        e.y = H * 0.15 + e.h / 2; 
-                        e.bossReturning = false; 
+                    if (e.y <= H * 0.15 + e.h / 2) {
+                        e.y = H * 0.15 + e.h / 2;
+                        e.bossReturning = false;
                         e.bossDiveTimer = 0;
                     }
                 }
@@ -611,13 +628,13 @@
             if (!e.boss && !isOnScreen(e)) continue; ctx.save();
             if (e.flash > 0) { ctx.shadowBlur = 25; ctx.shadowColor = '#fff'; }
             drawImgSafe(e.img, e.x - e.w / 2, e.y - e.h / 2, e.w, e.h);
-            
+
             if (e.hp > 0) {
                 const bw = e.w * (e.boss ? 1.3 : 1), bh = e.boss ? 8 : 5, bx = e.x - bw / 2, by = e.y - e.h / 2 - (e.boss ? 20 : 12), r = e.hp / e.maxHp;
                 ctx.fillStyle = '#222'; ctx.fillRect(bx, by, bw, bh); ctx.fillStyle = r > 0.5 ? '#0f0' : r > 0.25 ? '#ff0' : '#f00';
                 ctx.fillRect(bx, by, bw * r, bh); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
             }
-            
+
             if (e.boss && e.hp > 0) { ctx.fillStyle = '#ff0'; ctx.font = 'bold 14px Orbitron'; ctx.textAlign = 'center'; ctx.shadowBlur = 8; ctx.shadowColor = '#ff0'; ctx.fillText('ГАЛЮХА-БОСС', e.x, e.y - e.h / 2 - 28); }
             ctx.restore();
         }
@@ -654,20 +671,20 @@
                 if (dist(b.x, b.y, e.x, e.y) < e.w / 2 + 6) {
                     bullets.splice(bi, 1); e.hp--; e.flash = 80; boom(b.x, b.y, 4, '#0ff'); playSynthHit();
                     if (e.hp <= 0) {
-                        const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score; 
-                        boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80'); 
-                        
+                        const pts = e.boss ? 500 * wave : 100; score += pts; elScore.textContent = score;
+                        boom(e.x, e.y, e.boss ? 55 : 20, e.boss ? '#ff0' : '#f80');
+
                         const tx = e.x + (Math.random() - 0.5) * 30;
                         const ty = e.y + (Math.random() - 0.5) * 20;
                         addText(tx, ty, '+' + pts, e.boss ? '#ff0' : '#0ff');
 
-                        if (e.boss) { 
-                            bossAlive = false; doShake(16, 600); 
+                        if (e.boss) {
+                            bossAlive = false; doShake(16, 600);
                             floatTexts = floatTexts.filter(t => !t.text.includes('ГАЛЮХА УНИЧТОЖЕНА'));
-                            addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008); 
-                            playSound('bossKill'); 
-                        } else { 
-                            playSound('kill'); 
+                            addText(W / 2, H / 2, 'ГАЛЮХА УНИЧТОЖЕНА!', '#0f0', 26, 0.008);
+                            playSound('bossKill');
+                        } else {
+                            playSound('kill');
                         }
                         enemies.splice(ei, 1);
                     }
@@ -712,8 +729,8 @@
         const isBoss = wave % CFG.bossEvery === 0;
 
         if (isBoss) {
-            toSpawn = 0; spawnEnemy(true); bossAlive = true; 
-            floatTexts = floatTexts.filter(t => !t.text.includes('БОСС')); 
+            toSpawn = 0; spawnEnemy(true); bossAlive = true;
+            floatTexts = floatTexts.filter(t => !t.text.includes('БОСС'));
             addText(W / 2, H / 2 - 30, '⚠ БОСС-ГАЛЮХА ⚠', '#ff0', 28, 0.008); playSound('bossWarn');
         } else {
             toSpawn = Math.floor(scaleLimitless(8, 45, wave, 25));
@@ -724,10 +741,10 @@
             if (wave === 10) extraText = 'ОТКРЫТ ТРОЙНОЙ ВЕЕР!';
             if (wave === 15) extraText = 'МАШИНА СМЕРТИ АКТИВИРОВАНА!';
 
-            spawnTimer = 0; 
-            addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008); 
+            spawnTimer = 0;
+            addText(W / 2, H / 2, 'ВОЛНА ' + wave, '#0ff', 32, 0.008);
             if (extraText) setTimeout(() => addText(W / 2, H / 2 + 40, extraText, '#0f0', 20, 0.006), 500);
-            
+
             playSynthWave();
         }
         elWave.textContent = wave;
@@ -756,7 +773,7 @@
     // ===== СТАРТ =====
     function startGameDirect() {
         if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-        
+
         musicTrack.currentTime = 0;
         musicTrack.play().catch(()=>{});
 
