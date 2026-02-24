@@ -383,9 +383,9 @@
     //  ★ КОНФИГ + БАЛАНС 
     // ============================================================
     const CFG = {
-        playerSpeed:  12,       // Базовая скорость (будет расти)
+        playerSpeed:  12,       
         bulletSpeed:  20,       
-        fireRate:     110,      // Базовая задержка (будет падать)
+        fireRate:     110,      
         lives:        3,
         invincTime:   2000,
         wavePause:    2500,
@@ -425,7 +425,6 @@
     function updatePlayer(dt) {
         const s60 = dt / 16.666;
         
-        // ★ ПРОКАЧКА: С каждой волной корабль становится маневреннее
         const currentSpd = Math.min(22, CFG.playerSpeed + wave * 0.15);
         const speed = currentSpd * s60;
 
@@ -451,28 +450,23 @@
     // ===== ПУЛИ (ЭВОЛЮЦИЯ СТВОЛОВ) =====
     function shoot() {
         const w = 4, h = 14;
-        const bSpd = CFG.bulletSpeed; // Базовая скорость пули
+        const bSpd = CFG.bulletSpeed; 
 
-        // ★ ПРОКАЧКА ОРУЖИЯ В ЗАВИСИМОСТИ ОТ ВОЛНЫ
         if (wave < 5) {
-            // Уровень 1: Одиночная (Волны 1-4)
             bullets.push({ x: player.x, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
         } else if (wave < 10) {
-            // Уровень 2: Двойная (Волны 5-9)
             bullets.push({ x: player.x - 8, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
             bullets.push({ x: player.x + 8, y: player.y - 28, w, h, vx: 0, vy: -bSpd });
         } else if (wave < 15) {
-            // Уровень 3: Тройной веер (Волны 10-14)
             bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
             bullets.push({ x: player.x - 10, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 10, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
         } else {
-            // Уровень 4: МАШИНА СМЕРТИ (5 пуль, Волны 15+)
             bullets.push({ x: player.x, y: player.y - 32, w, h, vx: 0, vy: -bSpd });
             bullets.push({ x: player.x - 12, y: player.y - 28, w, h, vx: -bSpd * 0.15, vy: -bSpd * 0.98 });
             bullets.push({ x: player.x + 12, y: player.y - 28, w, h, vx: bSpd * 0.15, vy: -bSpd * 0.98 });
-            bullets.push({ x: player.x - 24, y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
-            bullets.push({ x: player.x + 24, y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
+            bullets.push({ x: player.x - 24, y: y: player.y - 24, w, h, vx: -bSpd * 0.3, vy: -bSpd * 0.95 });
+            bullets.push({ x: player.x + 24, y: y: player.y - 24, w, h, vx: bSpd * 0.3, vy: -bSpd * 0.95 });
         }
         
         playSynthShoot();
@@ -483,8 +477,8 @@
         fireTimer -= dt; 
         if (fireTimer <= 0) { 
             shoot(); 
-            // ★ ПРОКАЧКА: Скорострельность растет с каждой волной (база 110мс, снижается до 55мс)
-            fireTimer = Math.max(55, CFG.fireRate - (wave * 2)); 
+            // ★ ФИКС СКОРОСТРЕЛЬНОСТИ: Не опускаем ниже 65мс, чтобы игроку не было СЛИШКОМ легко
+            fireTimer = Math.max(65, CFG.fireRate - (wave * 1.5)); 
         } 
     }
 
@@ -493,7 +487,6 @@
         for (let i = bullets.length - 1; i >= 0; i--) { 
             bullets[i].x += bullets[i].vx * s60;
             bullets[i].y += bullets[i].vy * s60; 
-            // Удаляем пулю, если она улетела за края экрана
             if (bullets[i].y < -20 || bullets[i].x < -20 || bullets[i].x > W + 20) {
                 bullets.splice(i, 1); 
             }
@@ -514,19 +507,21 @@
     }
 
     // ============================================================
-    //  ★ ВРАГИ И БОСС 
+    //  ★ ВРАГИ И ХАРДКОРНЫЙ БОСС 
     // ============================================================
     function spawnEnemy(isBoss) {
         const sz = isBoss ? 110 : 48 + Math.random() * 24;
-        const spd = isBoss ? 0 : scaleLimitless(2.0, 5.0, wave, 25) + Math.random() * 1.5;
+        
+        // Обычные мобы: летят всё быстрее
+        const spd = isBoss ? 0 : scaleLimitless(2.5, 7.5, wave, 20) + Math.random() * 2.0;
 
         let hp;
         if (isBoss) {
-            // ★ БОСС ЖИРЕЕТ СИЛЬНЕЕ, потому что у тебя теперь дробовик
-            hp = 40 + (wave * 25);
+            // ★ БОСС-ТАНК: У нее теперь дохуя здоровья, чтобы выдержать твои 5 пушек (60 база + 40 за волну)
+            hp = 60 + (wave * 40);
         } else {
-            // Обычные мобы тоже слегка крепают
-            hp = Math.floor(scaleLimitless(1, 5, wave, 15));
+            // Мобы тоже толстеют
+            hp = Math.floor(scaleLimitless(1, 8, wave, 15));
         }
 
         const img = isBoss ? BOSS_IMG : (ENEMY_IMGS.length > 0 ? ENEMY_IMGS[Math.floor(Math.random() * ENEMY_IMGS.length)] : null);
@@ -535,7 +530,8 @@
             x: Math.random() * (W - sz * 2) + sz, y: -sz - 30, w: sz, h: sz,
             speed: spd, hp: hp, maxHp: hp, img: img, boss: !!isBoss,
             zigzag: !isBoss && Math.random() > 0.4, 
-            zigAmp: (Math.random() - 0.5) * 6,     
+            // ★ ХАРДКОРНЫЙ ЗИГЗАГ: мобы маневрируют как ебанутые на поздних волнах, чтобы обойти твой веер
+            zigAmp: (Math.random() - 0.5) * scaleLimitless(6, 15, wave, 20),     
             angle: Math.random() * Math.PI * 2, flash: 0,
             bossDir: Math.random() > 0.5 ? 1 : -1,
             bossDiveTimer: 0, bossDiving: false, bossReturning: false
@@ -564,9 +560,11 @@
                 if (!isOnScreen(e) && !e.bossDiving) { e.y += 2.0 * s60; e.x = Math.max(e.w / 2, Math.min(W - e.w / 2, e.x)); if (e.flash > 0) e.flash -= dt; continue; }
 
                 const hpPercent = Math.max(0.1, e.hp / e.maxHp);
-                const enrageMult = 1 + (1 - hpPercent) * 0.35; 
+                // ★ ЯРОСТЬ: Она ускоряется до +60%, когда ХП мало
+                const enrageMult = 1 + (1 - hpPercent) * 0.6; 
 
-                const bossHorizSpd = scaleLimitless(2.5, 5.0, wave, 30) * enrageMult * s60;
+                // ★ МАНСЫ БОССА: Она очень быстро носится влево-вправо, заставляя тебя целиться
+                const bossHorizSpd = scaleLimitless(4.0, 9.0, wave, 30) * enrageMult * s60;
                 e.x += e.bossDir * bossHorizSpd;
                 
                 if (e.x < e.w / 2 + 20) { e.x = e.w / 2 + 20; e.bossDir = 1; }
@@ -575,7 +573,8 @@
                 if (!e.bossDiving && !e.bossReturning) {
                     e.bossDiveTimer += dt;
                     
-                    const diveInterval = Math.max(1500, scaleLimitless(3500, 2000, wave, 25) * hpPercent);
+                    // ★ МАЛО ВРЕМЕНИ ПОДЫШАТЬ: Интервал нырка снижается до минимума (600мс) на хай лвлах при ярости
+                    const diveInterval = Math.max(600, scaleLimitless(2500, 800, wave, 25) * hpPercent);
                     
                     if (e.bossDiveTimer > diveInterval) { e.bossDiving = true; e.bossDiveTimer = 0; }
 
@@ -585,7 +584,8 @@
                 }
 
                 if (e.bossDiving) {
-                    const diveSpd = scaleLimitless(6.0, 9.5, wave, 30) * enrageMult * s60;
+                    // ★ ГАЛЮХА-МЕТЕОР: Возвращаем бешеную скорость падения, уворачивайся!
+                    const diveSpd = scaleLimitless(12.0, 22.0, wave, 30) * enrageMult * s60;
                     e.y += diveSpd;
                     if (e.y >= player.y - 10 || e.y > H - 30) { 
                         e.y = Math.min(player.y - 10, H - 30); 
@@ -594,7 +594,8 @@
                 }
 
                 if (e.bossReturning) {
-                    const retSpd = scaleLimitless(3.5, 6.0, wave, 30) * s60;
+                    // Возвращается тоже быстро, чтобы не терять динамику
+                    const retSpd = scaleLimitless(5.0, 9.0, wave, 30) * s60;
                     e.y -= retSpd;
                     if (e.y <= H * 0.15 + e.h / 2) { 
                         e.y = H * 0.15 + e.h / 2; 
@@ -673,7 +674,7 @@
                         }
                         enemies.splice(ei, 1);
                     }
-                    break; // Переходим к следующей пуле
+                    break;
                 }
             }
         }
@@ -721,7 +722,6 @@
             toSpawn = Math.floor(scaleLimitless(8, 45, wave, 25));
             spawnInterval = Math.max(250, scaleLimitless(900, 300, wave, 25));
 
-            // ★ Выводим инфу, если корабль прокачался
             let extraText = '';
             if (wave === 5) extraText = 'ОТКРЫТ ДВОЙНОЙ СТВОЛ!';
             if (wave === 10) extraText = 'ОТКРЫТ ТРОЙНОЙ ВЕЕР!';
